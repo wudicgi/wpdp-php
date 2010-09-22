@@ -442,16 +442,8 @@ class WPDP_Indexes extends WPDP_Common {
 
         $pos = $this->_binarySearchRightmost($node, $key, true);
 
-/*
-        echo "<span style=\"color: red;\">Elements 1:</span>\n";
-        print_r($node['elements']);
-*/
         $this->_insertElementAfter($node, $key, $value, $pos);
-/*
-        echo "<span style=\"color: red;\">Elements 2:</span>\n";
-        print_r($node['elements']);
-        echo "\n\n";
-*/
+
         if ($this->_isOverflowed($node)) {
             $this->_splitNode($node);
         }
@@ -488,82 +480,94 @@ class WPDP_Indexes extends WPDP_Common {
          * So this method needn't and shouldn't to protect the nodes in cache
          */
 
-        $count_elements = count($node['elements']);
-
         assert('is_array($node)');
 
         assert('$this->_isOverflowed($node) == true');
-        assert('$count_elements >= 2');
+        assert('count($node[\'elements\']) >= 2');
 
-        if ($this->_node_parents[$node['_ofsSelf']] == null) {
-            trace(__METHOD__, "the node to split is the root node");
-            // 当前结点为根结点，创建新的根结点
-            $node_parent =& $this->_createNode(false, null);
-            // 设置当前结点的父结点为新创建的根结点
-            $this->_node_parents[$node['_ofsSelf']] = $node_parent['_ofsSelf'];
-            // 将当前结点的首个元素的键添加到新建的根结点中
-            trace(__METHOD__, "add offset " . $node['_ofsSelf'] . " as the new root's ofsExtra");
-            $this->_appendElement($node_parent, $node['elements'][0]['key'],
-                $node['_ofsSelf']);
-            // 因为新的根结点的子结点只有分裂形成的两个结点，因此当前结点
-            // 在新的根结点中的位置为 0
-            $node_pos_in_parent = 0;
-            // to be noticed
-            assert($flag_changed = false || true);
-            foreach ($this->_indexes['indexes'] as &$index) {
-                if ($index['ofsRoot'] == $node['_ofsSelf']) {
-                    $index['ofsRoot'] = $node_parent['_ofsSelf'];
-                    $flag_changed = true;
-                    trace(__METHOD__, "change the root of index $index[name] to " . $node_parent['_ofsSelf']);
-                    break;
-                }
-            }
-            unset($index);
-            assert('$flag_changed');
-            $this->_writeIndexes();
-        } else {
-            trace(__METHOD__, "the node to split has parent node");
-            // 获取父结点
-            $node_parent =& $this->_getNode($this->_node_parents[$node['_ofsSelf']]);
-            // 获取当前结点在父结点中的位置
-            $node_pos_in_parent = $this->_getPositionInParent($node);
-            trace(__METHOD__, "position in parent is $node_pos_in_parent");
-        }
+        /*
+        $count_elements = count($node['elements']);
+        $node_size_orig = $node['_size']; // for test, to be noticed
+        */
+
+        $node_parent =& $this->_splitNode_GetParentNode($node);
+
         // 创建新的下一个结点, to be noticed
         $node_2 =& $this->_createNode($node['isLeaf'],
             $this->_node_parents[$node['_ofsSelf']]);
 
-        $node_size_orig = $node['_size']; // for test, to be noticed
-        $node_size_half = (int)(WPDP::NODE_DATA_SIZE / 2);
-        $node_size_left = 0;
-        trace(__METHOD__, "size_half = $node_size_half, size_left = $node_size_left");
-        $middle = -1;
-        for ($pos = 0; $pos < $count_elements; $pos++) {
-            $elem_size = $this->_computeElementSize($node['elements'][$pos]['key']);
-            trace(__METHOD__, "size_elem[" . $pos . "] = $elem_size");
-            if ($node_size_left + $elem_size > $node_size_half) {
-                trace(__METHOD__, "size_left + size_elem = " . ($node_size_left + $elem_size) . " > size_half");
-                $middle = $pos;
-                break;
-            }
-            trace(__METHOD__, "size_left = size_left + size_elem = " . ($node_size_left + $elem_size));
-            $node_size_left += $elem_size;
+        $this->_splitNode_Divide($node, $node_2, $node_parent);
+
+        assert('$this->_isOverflowed($node) == false');
+        assert('$this->_isOverflowed($node_2) == false');
+
+        /*
+        trace(__METHOD__, "split a node, size: $node_size_orig => " . $node['_size'] . " + " . $node_2['_size'] . ", count: $count_elements => " . count($node['elements']) . " + " . count($node_2['elements']) . "\n");
+        */
+
+        if ($this->_isOverflowed($node_parent)) {
+            $this->_splitNode($node_parent);
+        }
+    }
+
+    // }}}
+
+#endif
+
+    private function &_splitNode_GetParentNode(array &$node) {
+        /* Possible traces:
+         * ... -> _splitNode() [PROTECTED] -> _splitNode_GetParentNode()
+         *
+         * So this method needn't and shouldn't to protect the nodes in cache
+         */
+
+        // 若当前结点不是根节点，直接获取其父结点并返回
+        if ($this->_node_parents[$node['_ofsSelf']] != null) {
+            trace(__METHOD__, "the node to split has parent node");
+            $node_parent =& $this->_getNode($this->_node_parents[$node['_ofsSelf']]);
+            return $node_parent;
         }
 
-        assert('$middle != -1'); // to be noticed
-        assert('$middle != $count_elements'); // to be noticed
+        // 当前结点为根结点
+        trace(__METHOD__, "the node to split is the root node");
+        // 创建新的根结点
+        $node_parent =& $this->_createNode(false, null);
+        // 设置当前结点的父结点为新创建的根结点
+        $this->_node_parents[$node['_ofsSelf']] = $node_parent['_ofsSelf'];
+        // 将当前结点的首个元素的键添加到新建的根结点中
+        trace(__METHOD__, "add offset " . $node['_ofsSelf'] . " as the new root's ofsExtra");
+        $this->_appendElement($node_parent, $node['elements'][0]['key'],
+            $node['_ofsSelf']);
 
         // to be noticed
-        if ($node['elements'][$middle]['key'] != $node['elements'][0]['key']) {
-            while ($node['elements'][$middle]['key'] == $node['elements'][$middle-1]['key']) {
-                $middle--;
-                $node_size_left -= $this->_computeElementSize($node['elements'][$middle]['key']);
+        $flag_changed = false;
+        foreach ($this->_indexes['indexes'] as &$index) {
+            if ($index['ofsRoot'] == $node['_ofsSelf']) {
+                $index['ofsRoot'] = $node_parent['_ofsSelf'];
+                $flag_changed = true;
+                trace(__METHOD__, "change the root of index $index[name] to " . $node_parent['_ofsSelf']);
+                break;
             }
-        } else {
-            trace(__METHOD__, "notice here, newly fixed");
         }
+        unset($index);
+        assert('$flag_changed');
+        $this->_writeIndexes();
 
-        assert('$middle > 0'); // to be noticed
+        return $node_parent;
+    }
+
+    private function _splitNode_Divide(array &$node, array &$node_2, array &$node_parent) {
+        /* Possible traces:
+         * ... -> _splitNode() [PROTECTED] -> _splitNode_Divide()
+         *
+         * So this method needn't and shouldn't to protect the nodes in cache
+         */
+
+        list ($middle, $node_size_left) = $this->_splitNode_GetMiddle($node, $node_2);
+
+        // 获取当前结点在父结点中的位置
+        $node_pos_in_parent = $this->_splitNode_GetPositionInParent($node, $node_parent);
+        trace(__METHOD__, "position in parent is $node_pos_in_parent");
 
         // 叶子结点和普通结点的分裂方式不同
         if ($node['isLeaf']) {
@@ -573,7 +577,6 @@ class WPDP_Indexes extends WPDP_Common {
             $node_2['ofsExtra'] = $node['ofsExtra'];
             $node['ofsExtra'] = $node_2['_ofsSelf'];
 
-//            $node_2['elements'] = array_splice($node['elements'], $middle, $count_elements, array());
             $node_2['elements'] = array_slice($node['elements'], $middle);
             $node['elements'] = array_slice($node['elements'], 0, $middle);
 
@@ -602,78 +605,130 @@ class WPDP_Indexes extends WPDP_Common {
             $this->_insertElementAfter($node_parent, $element_mid['key'],
                 $node_2['_ofsSelf'], $node_pos_in_parent);
         }
-
-        assert('$this->_isOverflowed($node) == false');
-        assert('$this->_isOverflowed($node_2) == false');
-
-        trace(__METHOD__, "split a node, size: $node_size_orig => " . $node['_size'] . " + " . $node_2['_size'] . ", count: $count_elements => " . count($node['elements']) . " + " . count($node_2['elements']) . "\n");
-
-        if ($this->_isOverflowed($node_parent)) {
-            $this->_splitNode($node_parent);
-        }
     }
 
-    // }}}
+    private function _splitNode_GetMiddle(array &$node, array &$node_2) {
+        /* Possible traces:
+         * ... -> _splitNode_Divide() [PROTECTED] -> _splitNode_GetMiddle()
+         *
+         * So this method needn't and shouldn't to protect the nodes in cache
+         */
 
-#endif
+        $count_elements = count($node['elements']);
+
+        $node_size_orig = $node['_size']; // for test, to be noticed
+        $node_size_half = (int)(WPDP::NODE_DATA_SIZE / 2);
+        $node_size_left = 0;
+
+        trace(__METHOD__, "size_orig = $node_size_orig, size_half = $node_size_half");
+        trace(__METHOD__, "size_left = $node_size_left");
+
+        $middle = -1;
+        for ($pos = 0; $pos < $count_elements; $pos++) {
+            $elem_size = $this->_computeElementSize($node['elements'][$pos]['key']);
+            trace(__METHOD__, "size_elem[" . $pos . "] = $elem_size");
+            if ($node_size_left + $elem_size > $node_size_half) {
+                trace(__METHOD__, "size_left + size_elem = " . ($node_size_left + $elem_size) . " > size_half");
+                $middle = $pos;
+                break;
+            }
+            trace(__METHOD__, "size_left = size_left + size_elem = " . ($node_size_left + $elem_size));
+            $node_size_left += $elem_size;
+        }
+
+        assert('$middle != -1'); // to be noticed
+        assert('$middle != $count_elements'); // to be noticed
+
+        /* 情况 1)
+         *
+         * A A A A B B B B
+         *       ^ middle = 3
+         *
+         * 若中间键和第一个键相同，不用处理
+         *
+         * 情况 2)
+         *
+         * A A A B B B B B
+         *       ^ middle = 3
+         *
+         * 若中间键和第一个键不同，但中间键和其前一个键不同，则也不用处理
+         * 此时底下代码的 while 循环不会起作用
+         *
+         * 情况 3)
+         *
+         * A A B B B B B B
+         *       ^ middle = 3
+         *
+         * 若中间键和第一个键不同，while 循环会尝试找到和中间键相同的最靠左的键
+         * 对于上例，最终结果为 middle = 2
+         */
+        if ($node['elements'][$middle]['key'] != $node['elements'][0]['key']) {
+            while ($node['elements'][$middle]['key'] == $node['elements'][$middle-1]['key']) {
+                $middle--;
+                $node_size_left -= $this->_computeElementSize($node['elements'][$middle]['key']);
+            }
+        }
+
+        assert('$middle > 0'); // to be noticed
+
+        return array($middle, $node_size_left);
+    }
 
 #ifdef VERSION_WRITABLE
 
-    // {{{ _getPositionInParent()
+    // {{{ _splitNode_GetPositionInParent()
 
     /**
      * 获取指定结点在其父结点中的位置
      *
      * @access private
      *
-     * @param array $node   结点
+     * @param array $node           结点
+     * @param array $node_parent    父结点
      *
      * @return integer 位置
      */
-    private function _getPositionInParent(array &$node) {
+    private function _splitNode_GetPositionInParent(array &$node, array &$node_parent) {
         trace(__METHOD__, "node_offset = " . $node['_ofsSelf']);
 
         /* Possible traces:
-         * ... -> _splitNode() [PROTECTED] -> _getPositionInParent()
+         * ... -> _splitNode_Divide() [PROTECTED] -> _splitNode_GetPositionInParent()
          *
          * So this method needn't and shouldn't to protect the nodes in cache
          */
 
-        // 该方法只会被 _splitNode() 方法调用，因而不用再开启结点操作会话
-
         assert('is_array($node)');
+        assert('is_array($node_parent)');
 
-        $count = count($node['elements']);
-
-        assert('$count > 0');
+        assert('count($node[\'elements\']) > 0'); // 需要利用结点中的第一个键进行查找
+        assert('$node_parent[\'isLeaf\'] == 0');
 
         $offset = $node['_ofsSelf'];
 
-        if ($this->_node_parents[$offset] == null) {
-            throw new WPDP_FileBrokenException();
-        }
-
-        $node_parent =& $this->_getNode($this->_node_parents[$offset]);
-
-        assert('$node_parent[\'isLeaf\'] == 0');
-
         if ($node_parent['ofsExtra'] == $offset) {
             trace(__METHOD__, "found node offset at ofsExtra");
+            // 若当前结点为父结点的最左边的子结点
             return -1;
         }
 
+        // 此处需要使用 lookup 方式在父结点中查找结点的第一个键
+        // B+ 树的形态参考 Database 一书中的图 8-12
         $pos = $this->_binarySearchLeftmost($node_parent, $node['elements'][0]['key'], true);
+
+        assert('$pos != -1'); // 若位置在左边界外，则应在前面的 if 判断中已检查出
+
         $count_parent = count($node_parent['elements']);
-//        assert('$pos != -1');
+
+        // 从查找到的位置向右依次判断
         while ($pos < $count_parent) {
             if ($node_parent['elements'][$pos]['value'] == $offset) {
                 trace(__METHOD__, "found node offset at pos $pos");
                 return $pos;
             }
-            // to be noticed, improved
             $pos++;
         }
 
+        // 在父结点中没有找到当前结点，抛出异常
         throw new WPDP_FileBrokenException();
     }
 
@@ -1226,7 +1281,6 @@ class WPDP_Indexes extends WPDP_Common {
         } elseif ($for_insert && $probe - 1 >= 0 && $this->_keyCompare($node, $probe - 1, $desired) < 0) {
             return $probe - 1;
         } else {
-//            trace(__METHOD__, print_r($node['elements'], true));
             return self::BINARY_SEARCH_NOT_FOUND;
         }
     }
