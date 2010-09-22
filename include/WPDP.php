@@ -27,11 +27,12 @@
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
  * @version    SVN: $Id$
- * @link       http://wudilabs.org/
+ * @link       http://www.wudilabs.org/
  */
 
 require_once 'WPDP/Struct.php';
 require_once 'WPDP/FileHandler.php';
+require_once 'WPDP/Entry.php';
 require_once 'WPDP/Common.php';
 
 require_once 'WPDP/Contents.php';
@@ -48,7 +49,7 @@ WPDP_Struct::init();
  * @author     Wudi Liu <wudicgi@gmail.com>
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
- * @link       http://wudilabs.org/
+ * @link       http://www.wudilabs.org/
  */
 class WPDP {
     // {{{ 用于文件结构的常量
@@ -56,14 +57,16 @@ class WPDP {
     /**
      * 各类型结构的标识常量
      *
-     * @global integer HEADER_SIGNATURE    头信息的标识
-     * @global integer SECTION_SIGNATURE   区域信息的标识
-     * @global integer METADATA_SIGNATURE  元数据的标识
-     * @global integer NODE_SIGNATURE      索引节点的标识
+     * @global integer HEADER_SIGNATURE     头信息的标识
+     * @global integer SECTION_SIGNATURE    区域信息的标识
+     * @global integer METADATA_SIGNATURE   元数据的标识
+     * @global integer INDEXES_SIGNATURE    索引表的标识
+     * @global integer NODE_SIGNATURE       索引结点的标识
      */
     const HEADER_SIGNATURE = 0x50445057; // WPDP
     const SECTION_SIGNATURE = 0x54434553; // SECT
     const METADATA_SIGNATURE = 0x4154454D; // META
+    const INDEXES_SIGNATURE = 0x58444E49; // INDX
     const NODE_SIGNATURE = 0x45444F4E; // NODE
 
     /**
@@ -96,17 +99,21 @@ class WPDP {
      * => node_block_size >= 1024 (final min value)
      *
      * @global integer HEADER_BLOCK_SIZE    头信息的块大小
+     * @global integer SECTION_BLOCK_SIZE   区域信息的块大小
      * @global integer METADATA_BLOCK_SIZE  元数据的块大小
-     * @global integer NODE_BLOCK_SIZE      索引节点的块大小
+     * @global integer INDEXES_BLOCK_SIZE   索引表的块大小
+     * @global integer NODE_BLOCK_SIZE      索引结点的块大小
      */
     const HEADER_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
+    const SECTION_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
     const METADATA_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
+    const INDEXES_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
     const NODE_BLOCK_SIZE = 4096; // BASE_BLOCK_SIZE * 8
 
     /**
      * 各类型结构的其他大小常量
      *
-     * @global integer NODE_DATA_SIZE  索引节点的数据区域大小
+     * @global integer NODE_DATA_SIZE  索引结点的数据区域大小
      */
     const NODE_DATA_SIZE = 4064; // NODE_BLOCK_SIZE - 32
 
@@ -226,27 +233,6 @@ class WPDP {
 
     // }}}
 
-    // {{{ 用于元数据和索引的常量
-
-    /**
-     * 数据类型常量
-     *
-     * @global integer DATATYPE_INT32   32 位有符号整数 (可索引)
-     * @global integer DATATYPE_INT64   64 位有符号整数 (可索引)
-     * @global integer DATATYPE_BLOB    二进制数据      (不可索引, L <= 65535)
-     * @global integer DATATYPE_TEXT    文本数据        (不可索引, L <= 65535)
-     * @global integer DATATYPE_BINARY  二进制串        (可索引, L <= 255)
-     * @global integer DATATYPE_STRING  字符串          (可索引, L <= 255)
-     */
-    const DATATYPE_INT32 = 0x01; // 1
-    const DATATYPE_INT64 = 0x03; // 3
-    const DATATYPE_BLOB = 0xFB; // 251
-    const DATATYPE_TEXT = 0xFC; // 252
-    const DATATYPE_BINARY = 0xFD; // 253
-    const DATATYPE_STRING = 0xFE; // 254
-
-    // }}}
-
     // {{{ 用于数据堆操作的常量
 
     const MODE_READONLY = 1;
@@ -284,6 +270,33 @@ class WPDP {
     private $_indexes = null;
 
     /**
+     * 压缩类型
+     *
+     * @access private
+     *
+     * @var integer
+     */
+    private $_compression = self::COMPRESSION_NONE;
+
+    /**
+     * 校验类型
+     *
+     * @access private
+     *
+     * @var integer
+     */
+    private $_checksum = self::CHECKSUM_NONE;
+
+    /**
+     * 索引的属性名
+     *
+     * @access private
+     *
+     * @var integer
+     */
+    private $_attribute_indexes = array();
+
+    /**
      * 数据堆打开模式
      *
      * @access private
@@ -301,24 +314,30 @@ class WPDP {
      *
      * @access public
      *
-     * @param object  $fpc   内容文件操作对象
-     * @param object  $fpm   元数据文件操作对象
-     * @param object  $fpi   索引文件操作对象
-     * @param integer $mode  打开模式
+     * @param object  $stream_c 内容文件操作对象
+     * @param object  $stream_m 元数据文件操作对象
+     * @param object  $stream_i 索引文件操作对象
+     * @param integer $mode     打开模式
      *
      * @throws WPDP_InvalidArgumentException
      * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
-    function __construct(&$fpc, &$fpm, &$fpi, $mode = self::MODE_READONLY) {
+    function __construct(WPIO_Stream $stream_c, WPIO_Stream $stream_m = null,
+                         WPIO_Stream $stream_i = null, $mode = self::MODE_READONLY) {
+        assert('is_a($stream_c, \'WPIO_Stream\')');
+        assert('is_a($stream_m, \'WPIO_Stream\') || is_null($stream_m)');
+        assert('is_a($stream_i, \'WPIO_Stream\') || is_null($stream_m)');
+        assert('is_int($mode) && in_array($mode, array(self::MODE_READONLY, self::MODE_READWRITE))');
+
         // 检查参数
         if ($mode != self::MODE_READONLY && $mode != self::MODE_READWRITE) {
             throw new WPDP_InvalidArgumentException("Invalid mode: $mode");
         }
 
         // 读取文件的头信息
-        $fpc->seek(0, SEEK_SET);
-        $header = WPDP_Struct::unpackHeader($fpc);
+        $stream_c->seek(0, SEEK_SET);
+        $header = WPDP_Struct::unpackHeader($stream_c);
 
         if ($header['limit'] != self::FILE_LIMIT_INT32) {
             throw new WPDP_FileOpenException("This implemention supports only int32 limited file");
@@ -340,19 +359,19 @@ class WPDP {
 
         switch ($header['type']) {
             case self::FILE_TYPE_COMPOUND:
-                $this->_contents = new WPDP_Contents($fpc, $this->_mode);
-                $this->_metadata = new WPDP_Metadata($fpc, $this->_mode);
-                $this->_indexes = new WPDP_Indexes($fpc, $this->_mode);
+                $this->_contents = new WPDP_Contents($stream_c, $this->_mode);
+                $this->_metadata = new WPDP_Metadata($stream_c, $this->_mode);
+                $this->_indexes = new WPDP_Indexes($stream_c, $this->_mode);
                 break;
             case self::FILE_TYPE_LOOKUP:
                 $this->_contents = null;
-                $this->_metadata = new WPDP_Metadata($fpc, $this->_mode);
-                $this->_indexes = new WPDP_Indexes($fpc, $this->_mode);
+                $this->_metadata = new WPDP_Metadata($stream_c, $this->_mode);
+                $this->_indexes = new WPDP_Indexes($stream_c, $this->_mode);
                 break;
             case self::FILE_TYPE_CONTENTS:
-                $this->_contents = new WPDP_Contents($fpc, $this->_mode);
-                $this->_metadata = new WPDP_Metadata($fpm, $this->_mode);
-                $this->_indexes = new WPDP_Indexes($fpi, $this->_mode);
+                $this->_contents = new WPDP_Contents($stream_c, $this->_mode);
+                $this->_metadata = new WPDP_Metadata($stream_m, $this->_mode);
+                $this->_indexes = new WPDP_Indexes($stream_i, $this->_mode);
                 break;
             default:
                 throw new WPDP_FileOpenException("The file must be a compound, lookup or contents file");
@@ -371,19 +390,22 @@ class WPDP {
      *
      * @access public
      *
-     * @param object $fpc     内容文件操作对象
-     * @param object $fpm     元数据文件操作对象
-     * @param object $fpi     索引文件操作对象
-     * @param array  $fields  属性字段定义
+     * @param object $stream_c  内容文件操作对象
+     * @param object $stream_m  元数据文件操作对象
+     * @param object $stream_i  索引文件操作对象
      *
      * @throws WPDP_InvalidArgumentException
      * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
-    public static function create(&$fpc, &$fpm, &$fpi, $fields) {
-        WPDP_Contents::create($fpc, $fields);
-        WPDP_Metadata::create($fpm, $fields);
-        WPDP_Indexes::create($fpi, $fields);
+    public static function create(WPIO_Stream $stream_c, WPIO_Stream $stream_m, WPIO_Stream $stream_i) {
+        assert('is_a($stream_c, \'WPIO_Stream\')');
+        assert('is_a($stream_m, \'WPIO_Stream\')');
+        assert('is_a($stream_i, \'WPIO_Stream\')');
+
+        WPDP_Contents::create($stream_c);
+        WPDP_Metadata::create($stream_m);
+        WPDP_Indexes::create($stream_i);
 
         return true;
     }
@@ -397,54 +419,49 @@ class WPDP {
      *
      * @access public
      *
-     * @param object $fpc  内容文件操作对象
-     * @param object $fpm  元数据文件操作对象
-     * @param object $fpi  索引文件操作对象
+     * @param object $stream_c  内容文件操作对象
+     * @param object $stream_m  元数据文件操作对象
+     * @param object $stream_i  索引文件操作对象
      *
      * @throws WPDP_InvalidArgumentException
      * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
-    public static function compound(&$fpc, &$fpm, &$fpi) {
+    public static function compound(WPIO_Stream $stream_c, WPIO_Stream $stream_m, WPIO_Stream $stream_i) {
+        assert('is_a($stream_c, \'WPIO_Stream\')');
+        assert('is_a($stream_m, \'WPIO_Stream\')');
+        assert('is_a($stream_i, \'WPIO_Stream\')');
+
         // 读取内容文件的头信息
-        $header = WPDP_Struct::unpackHeader($fpc);
+        $header = WPDP_Struct::unpackHeader($stream_c);
         // 填充内容部分长度到基本块大小的整数倍
-        $fpc->seek(0, SEEK_END);
-        $padding = self::BASE_BLOCK_SIZE - ($fpc->tell() % self::BASE_BLOCK_SIZE);
-        $fpc->write(str_repeat("\x00", $padding));
+        $stream_c->seek(0, SEEK_END);
+        $padding = self::BASE_BLOCK_SIZE - ($stream_c->tell() % self::BASE_BLOCK_SIZE);
+        $stream_c->write(str_repeat("\x00", $padding));
 
         // 追加条目元数据
-        $header['ofsMetadata'] = $fpc->tell();
-        $headerm = WPDP_Struct::unpackHeader($fpm);
-        $fpm->seek($headerm['ofsMetadata'], SEEK_SET);
-        while (!$fpm->eof()) {
-            $fpc->write($fpm->read(8192));
+        $header['ofsMetadata'] = $stream_c->tell();
+        $headerm = WPDP_Struct::unpackHeader($stream_m);
+        $stream_m->seek($headerm['ofsMetadata'], SEEK_SET);
+        while (!$stream_m->eof()) {
+            $stream_c->write($stream_m->read(8192));
         }
 
         // 追加条目索引
-        $header['ofsIndexes'] = $fpc->tell();
-        $headeri = WPDP_Struct::unpackHeader($fpi);
-        $fpi->seek($headeri['ofsIndexes'], SEEK_SET);
-        while (!$fpi->eof()) {
-            $fpc->write($fpi->read(8192));
-        }
-
-        // 补充头信息中各域的索引信息
-        foreach ($headeri['fields'] as $name => &$field) {
-            if (!$field['index']) {
-                continue;
-            }
-
-            $header['fields'][$name]['ofsRoot'] = $field['ofsRoot'];
+        $header['ofsIndexes'] = $stream_c->tell();
+        $headeri = WPDP_Struct::unpackHeader($stream_i);
+        $stream_i->seek($headeri['ofsIndexes'], SEEK_SET);
+        while (!$stream_i->eof()) {
+            $stream_c->write($stream_i->read(8192));
         }
 
         // 更改文件类型为复合型
         $header['type'] = self::FILE_TYPE_COMPOUND;
 
         // 更新头信息
-        $fpc->seek(0, SEEK_SET);
+        $stream_c->seek(0, SEEK_SET);
         $data_header = WPDP_Struct::packHeader($header);
-        $fpc->write($data_header);
+        $stream_c->write($data_header);
 
         return true;
     }
@@ -494,14 +511,17 @@ class WPDP {
      *
      * @access public
      *
-     * @param string $attr_name   属性名
-     * @param mixed  $attr_value  属性值
+     * @param string $attr_name     属性名
+     * @param mixed  $attr_value    属性值
      *
      * @throws WPDP_InvalidAttributeNameException
      *
      * @return object WPDP_Entries 对象
      */
     public function query($attr_name, $attr_value) {
+        assert('is_string($attr_name)');
+        assert('is_string($attr_value)');
+
         try {
             $offsets = $this->_indexes->find($attr_name, $attr_value);
         } catch (WPDP_InvalidAttributeNameException $e) {
@@ -515,19 +535,89 @@ class WPDP {
 
     // }}}
 
+    // {{{ setCompression()
+
+    /**
+     * 设置压缩类型
+     *
+     * @access public
+     *
+     * @param integer $method   压缩类型
+     */
+    public function setCompression($method) {
+        assert('is_int($method)');
+        assert('in_array($method, array(self::COMPRESSION_NONE, self::COMPRESSION_GZIP, self::COMPRESSION_BZIP2))');
+
+        $this->_compression = $method;
+    }
+
+    // }}}
+
+    // {{{ setChecksum()
+
+    /**
+     * 设置校验类型
+     *
+     * @access public
+     *
+     * @param integer $method   校验类型
+     */
+    public function setChecksum($method = self::CHECKSUM_NONE) {
+        assert('is_int($method)');
+        assert('in_array($method, array(self::CHECKSUM_NONE, self::CHECKSUM_CRC32, self::CHECKSUM_MD5, self::CHECKSUM_SHA1))');
+
+        $this->_checksum = $method;
+    }
+
+    // }}}
+
+    // {{{ setIndexedAttributeNames()
+
+    /**
+     * 设置索引的属性名
+     *
+     * @access public
+     *
+     * @param array $names  索引的属性名
+     */
+    public function setIndexedAttributeNames(array $names) {
+        assert('is_array($names)');
+
+        $this->_attribute_indexes = $names;
+    }
+
+    // }}}
+
 #ifdef VERSION_WRITABLE
 
-    public function add($contents, $attrs = array(), $compression = self::COMPRESSION_NONE,
-                        $checksum = self::CHECKSUM_NONE) {
+    // {{{ add()
+
+    /**
+     * 添加一个条目
+     *
+     * @access public
+     *
+     * @param string $contents      条目内容
+     * @param array  $attributes    条目属性
+     *
+     * @throws 
+     */
+    public function add($contents, array $attributes = array()) {
+        assert('is_string($contents)');
+        assert('is_array($attributes)');
+
         if ($this->_mode == self::MODE_READONLY) {
             throw new WPDP_BadMethodCallException();
         }
 
         $length = strlen($contents);
-        $this->begin($length, $attrs, $compression, $checksum);
+
+        $this->begin($attributes, $length);
         $this->transfer($contents);
         $this->commit();
     }
+
+    // }}}
 
 #endif
 
@@ -540,20 +630,35 @@ class WPDP {
      *
      * @access public
      *
+     * @param string  $attributes   条目属性
      * @param integer $length       内容长度
-     * @param integer $compression  压缩类型 (可选，默认为 COMPRESSION_NONE)
-     * @param integer $checksum     校验类型 (可选，默认为 CHECKSUM_NONE)
      *
      * @throws 
      */
-    public function begin($length = 8388608, $attrs = array(), $compression = self::COMPRESSION_NONE,
-                          $checksum = self::CHECKSUM_NONE) {
+    public function begin(array $attributes = array(), $length = 8388608) {
+        assert('is_array($attributes)');
+        assert('is_int($length)');
+
         if ($this->_mode == self::MODE_READONLY) {
             throw new WPDP_BadMethodCallException();
         }
 
+        $this->_args = new WPDP_Entry_Args();
+
+        if (is_a($attributes, 'WPDP_Entry_Attributes')) {
+            $this->_args->attributes = $attributes; // to be noticed
+        } else {
+            try {
+                $this->_args->attributes = WPDP_Entry_Attributes::createFromArray($attributes, $this->_attribute_indexes);
+            } catch (Exception $e) {
+            }
+        }
+
+        $this->_args->compression = $this->_compression;
+        $this->_args->checksum = $this->_checksum;
+
         try {
-            $this->_contents->begin($length, $attrs, $compression, $checksum);
+            $this->_contents->begin($length, $this->_args);
         } catch (WPDP_InvalidArgumentException $e) {
             throw $e;
         } catch (WPDP_InvalidAttributeNameException $e) {
@@ -579,11 +684,13 @@ class WPDP {
      * @param string $data  数据
      */
     public function transfer($data) {
+        assert('is_string($data)');
+
         if ($this->_mode == self::MODE_READONLY) {
             throw new WPDP_BadMethodCallException();
         }
 
-        $this->_contents->transfer($data);
+        $this->_contents->transfer($data, $this->_args);
     }
 
     // }}}
@@ -606,9 +713,11 @@ class WPDP {
             throw new WPDP_BadMethodCallException();
         }
 
-        $args_contents = $this->_contents->commit();
-        $args_metadata = $this->_metadata->add($args_contents);
-        $this->_indexes->index($args_metadata);
+        $this->_contents->commit($this->_args);
+        $this->_metadata->add($this->_args);
+        $this->_indexes->index($this->_args);
+
+        unset($this->_args);
     }
 
     // }}}
@@ -617,9 +726,9 @@ class WPDP {
 }
 
 class WPDP_File extends WPDP {
-    private $_fpc = null;
-    private $_fpm = null;
-    private $_fpi = null;
+    private $_stream_c = null;
+    private $_stream_m = null;
+    private $_stream_i = null;
 
     // {{{ constructor
 
@@ -628,14 +737,17 @@ class WPDP_File extends WPDP {
      *
      * @access public
      *
-     * @param string  $filename  文件名
-     * @param integer $mode      打开模式
+     * @param string  $filename 文件名
+     * @param integer $mode     打开模式
      *
      * @throws WPDP_InvalidArgumentException
      * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
     function __construct($filename, $mode = WPDP::MODE_READONLY) {
+        assert('is_string($filename)');
+        assert('is_int($mode) && in_array($mode, array(self::MODE_READONLY, self::MODE_READWRITE))');
+
         // 检查参数
         if (!is_string($filename)) {
             throw new WPDP_InvalidArgumentException("The filename parameter must be a string");
@@ -650,21 +762,21 @@ class WPDP_File extends WPDP {
         $filenames = self::_getFilenames($filename);
         $filemode = ($mode == WPDP::MODE_READWRITE) ? 'r+b' : 'rb';
 
-        $this->_fpc = null;
-        $this->_fpm = null;
-        $this->_fpi = null;
+        $this->_stream_c = null;
+        $this->_stream_m = null;
+        $this->_stream_i = null;
 
         if (is_file($filenames[WPDP::FILE_TYPE_CONTENTS])) {
-            $this->_fpc = new WPDP_FileHandler($filenames[WPDP::FILE_TYPE_CONTENTS], $filemode);
+            $this->_stream_c = new File_Stream($filenames[WPDP::FILE_TYPE_CONTENTS], $filemode);
         }
         if (is_file($filenames[WPDP::FILE_TYPE_METADATA])) {
-            $this->_fpm = new WPDP_FileHandler($filenames[WPDP::FILE_TYPE_METADATA], $filemode);
+            $this->_stream_m = new File_Stream($filenames[WPDP::FILE_TYPE_METADATA], $filemode);
         }
         if (is_file($filenames[WPDP::FILE_TYPE_INDEXES])) {
-            $this->_fpi = new WPDP_FileHandler($filenames[WPDP::FILE_TYPE_INDEXES], $filemode);
+            $this->_stream_i = new File_Stream($filenames[WPDP::FILE_TYPE_INDEXES], $filemode);
         }
 
-        parent::__construct($this->_fpc, $this->_fpm, $this->_fpi, $mode);
+        parent::__construct($this->_stream_c, $this->_stream_m, $this->_stream_i, $mode);
     }
 
     // }}}
@@ -679,14 +791,14 @@ class WPDP_File extends WPDP {
     public function close() {
         $this->flush();
 
-        if (!is_null($this->_fpc)) {
-            $this->_fpc->close();
+        if (!is_null($this->_stream_c)) {
+            $this->_stream_c->close();
         }
-        if (!is_null($this->_fpm)) {
-            $this->_fpm->close();
+        if (!is_null($this->_stream_m)) {
+            $this->_stream_m->close();
         }
-        if (!is_null($this->_fpi)) {
-            $this->_fpi->close();
+        if (!is_null($this->_stream_i)) {
+            $this->_stream_i->close();
         }
 
         return true;
@@ -704,13 +816,14 @@ class WPDP_File extends WPDP {
      * @access public
      *
      * @param string $filename  文件名
-     * @param array  $fields    属性字段定义
      *
      * @throws WPDP_InvalidArgumentException
      * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
-    public static function create($filename, $fields) {
+    public static function create($filename) {
+        assert('is_string($filename)');
+
         $filenames = self::_getFilenames($filename);
 
         try {
@@ -721,15 +834,15 @@ class WPDP_File extends WPDP {
             throw $e;
         }
 
-        $fpc = new WPDP_FileHandler($filenames[WPDP::FILE_TYPE_CONTENTS], 'w+b'); // wb
-        $fpm = new WPDP_FileHandler($filenames[WPDP::FILE_TYPE_METADATA], 'w+b'); // wb
-        $fpi = new WPDP_FileHandler($filenames[WPDP::FILE_TYPE_INDEXES], 'w+b'); // wb
+        $stream_c = new File_Stream($filenames[WPDP::FILE_TYPE_CONTENTS], 'w+b'); // wb
+        $stream_m = new File_Stream($filenames[WPDP::FILE_TYPE_METADATA], 'w+b'); // wb
+        $stream_i = new File_Stream($filenames[WPDP::FILE_TYPE_INDEXES], 'w+b'); // wb
 
-        parent::create($fpc, $fpm, $fpi, $fields);
+        parent::create($stream_c, $stream_m, $stream_i);
 
-        $fpc->close();
-        $fpm->close();
-        $fpi->close();
+        $stream_c->close();
+        $stream_m->close();
+        $stream_i->close();
     }
 
     // }}}
@@ -744,6 +857,8 @@ class WPDP_File extends WPDP {
      * @param string $filename  文件名
      */
     public static function compound($filename) {
+        assert('is_string($filename)');
+
         $filenames = self::_getFilenames($filename);
 
         // 检查各文件的可读写性
@@ -758,15 +873,15 @@ class WPDP_File extends WPDP {
             throw $e;
         }
 
-        $fpc = new WPDP_FileHandler($filenames[self::FILE_TYPE_CONTENTS], 'r+b');
-        $fpm = new WPDP_FileHandler($filenames[self::FILE_TYPE_METADATA], 'rb');
-        $fpi = new WPDP_FileHandler($filenames[self::FILE_TYPE_INDEXES], 'rb');
+        $stream_c = new File_Stream($filenames[self::FILE_TYPE_CONTENTS], 'r+b');
+        $stream_m = new File_Stream($filenames[self::FILE_TYPE_METADATA], 'rb');
+        $stream_i = new File_Stream($filenames[self::FILE_TYPE_INDEXES], 'rb');
 
-        parent::compound($fpc, $fpm, $fpi);
+        parent::compound($stream_c, $stream_m, $stream_i);
 
-        $fpm->close();
-        $fpi->close();
-        $fpc->close();
+        $stream_m->close();
+        $stream_i->close();
+        $stream_c->close();
 
         unlink($filenames[self::FILE_TYPE_INDEXES]);
         unlink($filenames[self::FILE_TYPE_METADATA]);
@@ -791,6 +906,8 @@ class WPDP_File extends WPDP {
             WPDP::FILE_TYPE_METADATA => '.5dpm',
             WPDP::FILE_TYPE_INDEXES => '.5dpi'
         );
+
+        assert('is_string($filename)');
 
         $filenames = array();
 
@@ -822,6 +939,8 @@ class WPDP_File extends WPDP {
      * @throws WPDP_FileOpenException
      */
     private static function _checkReadable($filename) {
+        assert('is_string($filename)');
+
         if (!is_readable($filename)) {
             throw new WPDP_FileOpenException("File $filename is not readable");
         }
@@ -843,6 +962,8 @@ class WPDP_File extends WPDP {
      * @throws WPDP_FileOpenException
      */
     private static function _checkWritable($filename) {
+        assert('is_string($filename)');
+
         if (!is_writable($filename)) {
             throw new WPDP_FileOpenException("File $filename is not writable");
         }
@@ -866,6 +987,8 @@ class WPDP_File extends WPDP {
      * @throws WPDP_FileOpenException
      */
     private static function _checkCreatable($filename) {
+        assert('is_string($filename)');
+
         if (file_exists($filename)) {
             throw new WPDP_FileOpenException("File $filename has already existed");
         }
@@ -880,21 +1003,6 @@ class WPDP_File extends WPDP {
 }
 
 /**
- * WPDP_Helper
- *
- * 辅助类
- *
- * @category   File_Formats
- * @package    WPDP
- * @author     Wudi Liu <wudicgi@gmail.com>
- * @copyright  2009-2010 Wudi Labs
- * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
- * @link       http://wudilabs.org/
- */
-class WPDP_Helper {
-}
-
-/**
  * WPDP_Iterator
  *
  * 条目迭代器
@@ -904,7 +1012,7 @@ class WPDP_Helper {
  * @author     Wudi Liu <wudicgi@gmail.com>
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
- * @link       http://wudilabs.org/
+ * @link       http://www.wudilabs.org/
  */
 class WPDP_Iterator implements Iterator {
     private $_metadata = null;
@@ -914,9 +1022,13 @@ class WPDP_Iterator implements Iterator {
     private $_meta = null;
     private $_number = 0;
 
-    function __construct(&$metadata, &$contents, $first) {
-        $this->_metadata =& $metadata;
-        $this->_contents =& $contents;
+    function __construct(WPDP_Metadata $metadata, WPDP_Contents $contents, array $first) {
+        assert('is_a($metadata, \'WPDP_Metadata\')');
+        assert('is_a($contents, \'WPDP_Contents\')');
+        assert('is_array($first)');
+
+        $this->_metadata = $metadata;
+        $this->_contents = $contents;
         $this->_first = $first;
         $this->_meta = $first;
     }
@@ -924,7 +1036,9 @@ class WPDP_Iterator implements Iterator {
     // Iterator
 
     public function current() {
-        return $this->_getEntry($this->_meta);
+        assert('is_array($this->_meta)');
+
+        return new WPDP_Entry($this->_contents, $this->_meta);
     }
 
     public function key() {
@@ -944,224 +1058,26 @@ class WPDP_Iterator implements Iterator {
     public function valid() {
         return ($this->_meta != false);
     }
-
-    // private
-
-    private function _getEntry($meta) {
-        $entry = new WPDP_Entry($this->_contents, $meta);
-        return $entry;
-    }
 }
 
-/**
- * WPDP_Entries
- *
- * 条目集合
- *
- * @category   File_Formats
- * @package    WPDP
- * @author     Wudi Liu <wudicgi@gmail.com>
- * @copyright  2009-2010 Wudi Labs
- * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
- * @link       http://wudilabs.org/
- */
-class WPDP_Entries implements SeekableIterator, Countable, ArrayAccess {
-    private $_metadata = null;
-    private $_contents = null;
+interface WPIO_Stream {
+    public function close();
 
-    private $_offsets = array();
-    private $_position = 0;
+    public function isSeekable();
 
-    function __construct(&$metadata, &$contents, $offsets) {
-        $this->_metadata =& $metadata;
-        $this->_contents =& $contents;
-        $this->_offsets = $offsets;
-    }
+    public function isReadable();
 
-    // SeekableIterator
+    public function isWritable();
 
-    public function current() {
-        return $this->_getEntry($this->_offsets[$this->_position]);
-    }
+    public function seek($offset, $whence = SEEK_SET);
 
-    public function key() {
-        return $this->_position;
-    }
+    public function tell();
 
-    public function next() {
-        $this->_position++;
-    }
+    public function eof();
 
-    public function rewind() {
-        $this->_position = 0;
-    }
+    public function read($length);
 
-    public function valid() {
-        return array_key_exists($this->_position, $this->_offsets);
-    }
-
-    public function seek($position) {
-        $this->_position = $position;
-
-        if (!$this->valid()) {
-            throw new OutOfBoundsException();
-        }
-    }
-
-    // Countable
-
-    public function count() {
-        return count($this->_offsets);
-    }
-
-    // ArrayAccess
-
-    public function offsetExists($position) {
-        return array_key_exists($position, $this->_offsets);
-    }
-
-    public function offsetGet($position) {
-        return $this->_getEntry($this->_offsets[$position]);
-    }
-
-    public function offsetSet($position, $value) {
-        throw new BadMethodCallException();
-    }
-
-    public function offsetUnset($position) {
-        throw new BadMethodCallException();
-    }
-
-    // private
-
-    private function _getEntry($offset) {
-        $metadata = $this->_metadata->getMetadata($offset);
-        $entry = new WPDP_Entry($this->_contents, $metadata);
-        return $entry;
-    }
-}
-
-/**
- * WPDP_Entry
- *
- * 条目
- *
- * @category   File_Formats
- * @package    WPDP
- * @author     Wudi Liu <wudicgi@gmail.com>
- * @copyright  2009-2010 Wudi Labs
- * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
- * @link       http://wudilabs.org/
- */
-class WPDP_Entry {
-    // {{{ properties
-
-    /**
-     * 内容文件操作对象
-     *
-     * @access private
-     *
-     * @var object
-     */
-    private $_contents = null;
-
-    /**
-     * 元数据文件操作对象
-     *
-     * @access private
-     *
-     * @var object
-     */
-    private $_metadata = null;
-
-    // }}}
-
-    // {{{ constructor
-
-    /**
-     * 构造函数
-     *
-     * @access public
-     *
-     * @param object $contents  内容文件操作对象
-     * @param object $metadata  元数据文件操作对象
-     */
-    function __construct(&$contents, $metadata) {
-        $this->_contents =& $contents;
-        $this->_metadata = $metadata;
-    }
-
-    // }}}
-
-    // {{{ information()
-
-    /**
-     * 获取条目信息
-     *
-     * 返回信息包括数据原始长度，压缩后长度，压缩类型，校验类型，
-     * 分块大小，分块数量。
-     *
-     * @access public
-     *
-     * @return array 条目的部分信息
-     */
-    public function information() {
-        $information = array(
-            'original_length' => $this->_metadata['lenOriginal'],
-            'compressed_length' => $this->_metadata['lenCompressed'],
-            'compression' => $this->_metadata['compression'],
-            'checksum' => $this->_metadata['checksum'],
-            'chunk_size' => $this->_metadata['sizeChunk'],
-            'chunk_number' => $this->_metadata['numChunk']
-        );
-
-        return $information;
-    }
-
-    // }}}
-
-    // {{{ attributes()
-
-    /**
-     * 获取条目属性
-     *
-     * @access public
-     *
-     * @return array 条目的属性
-     */
-    public function attributes() {
-        return $this->_metadata['attributes'];
-    }
-
-    // }}}
-
-    // {{{ contents()
-
-    /**
-     * 获取条目数据内容
-     *
-     * @access public
-     *
-     * @param string $filename  文件名 (可选，指定则将内容写入到指定文件，默认为 null)
-     *
-     * @return contents 条目数据内容或 true (当指定 filename 参数时)
-     */
-    public function contents($filename = null) {
-        $args = new WPDP_Contents_Args();
-        $args->offset = $this->_metadata['ofsContents'];
-        $args->compression = $this->_metadata['compression'];
-        $args->checksum = $this->_metadata['checksum'];
-        $args->chunkSize = $this->_metadata['sizeChunk'];
-        $args->chunkCount = $this->_metadata['numChunk'];
-        $args->originalLength = $this->_metadata['lenOriginal'];
-        $args->compressedLength = $this->_metadata['lenCompressed'];
-        $args->offsetTableOffset = $this->_metadata['ofsOffsetTable'];
-        $args->checksumTableOffset = $this->_metadata['ofsChecksumTable'];
-
-        return $this->_contents->getContents($args, $filename);
-    }
-
-    // }}}
+    public function write($data);
 }
 
 /**

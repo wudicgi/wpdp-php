@@ -27,20 +27,20 @@
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
  * @version    SVN: $Id$
- * @link       http://wudilabs.org/
+ * @link       http://www.wudilabs.org/
  */
 
 /**
- * WPDP_FileHandler
+ * File_Stream
  *
  * @category   File_Formats
  * @package    WPDP
  * @author     Wudi Liu <wudicgi@gmail.com>
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
- * @link       http://wudilabs.org/
+ * @link       http://www.wudilabs.org/
  */
-class WPDP_FileHandler {
+class File_Stream implements WPIO_Stream {
     // {{{ properties
 
     /**
@@ -60,8 +60,8 @@ class WPDP_FileHandler {
         }
     }
 
-    function open($filename, $mode) {
-        assert('is_string($filename)'); // && is_file($filename), to be noticed
+    public function open($filename, $mode) {
+        assert('is_string($filename)');
 
         $this->_fp = fopen($filename, $mode);
 
@@ -70,27 +70,35 @@ class WPDP_FileHandler {
         }
     }
 
-    function close() {
+    public function close() {
         return fclose($this->_fp);
     }
 
-    function isReadable() {
+    public function isSeekable() {
         return true;
     }
 
-    function isSeekable() {
+    public function isReadable() {
         return true;
     }
 
-    function isWritable() {
+    public function isWritable() {
         return true;
     }
 
-    function eof() {
+    public function seek($offset, $whence = SEEK_SET) {
+        return fseek($this->_fp, $offset, $whence);
+    }
+
+    public function tell() {
+        return ftell($this->_fp);
+    }
+
+    public function eof() {
         return feof($this->_fp);
     }
 
-    function read($length) {
+    public function read($length) {
         /*
         ob_start();
         debug_print_backtrace();
@@ -103,16 +111,8 @@ class WPDP_FileHandler {
         return fread($this->_fp, $length);
     }
 
-    function write($data) {
+    public function write($data) {
         return fwrite($this->_fp, $data);
-    }
-
-    function seek($offset, $whence = SEEK_SET) {
-        return fseek($this->_fp, $offset, $whence);
-    }
-
-    function tell() {
-        return ftell($this->_fp);
     }
 }
 

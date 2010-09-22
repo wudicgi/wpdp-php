@@ -27,7 +27,7 @@
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
  * @version    SVN: $Id$
- * @link       http://wudilabs.org/
+ * @link       http://www.wudilabs.org/
  */
 
 /**
@@ -38,7 +38,7 @@
  * @author     Wudi Liu <wudicgi@gmail.com>
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
- * @link       http://wudilabs.org/
+ * @link       http://www.wudilabs.org/
  */
 class WPDP_Metadata extends WPDP_Common {
     // {{{ constructor
@@ -48,16 +48,16 @@ class WPDP_Metadata extends WPDP_Common {
      *
      * @access public
      *
-     * @param object  $fp    文件操作对象
-     * @param integer $mode  打开模式
+     * @param object  $stream   文件操作对象
+     * @param integer $mode     打开模式
      *
      * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
-    function __construct(&$fp, $mode) {
-        assert('is_a($fp, \'WPDP_FileHandler\')');
+    function __construct(WPIO_Stream $stream, $mode) {
+        assert('is_a($stream, \'WPIO_Stream\')');
 
-        parent::__construct(WPDP::SECTION_TYPE_METADATA, $fp, $mode);
+        parent::__construct(WPDP::SECTION_TYPE_METADATA, $stream, $mode);
     }
 
     // }}}
@@ -71,28 +71,15 @@ class WPDP_Metadata extends WPDP_Common {
      *
      * @access public
      *
-     * @param string $filename  文件名
-     * @param array  $fields    属性字段定义
+     * @param object $stream    文件操作对象
      *
      * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
-    public static function create(&$fp, $fields) {
-        $header = parent::createHeader($fields);
-        $header['type'] = WPDP::FILE_TYPE_METADATA;
+    public static function create(WPIO_Stream $stream) {
+        assert('is_a($stream, \'WPIO_Stream\')');
 
-        $section = WPDP_Struct::create('section');
-        $section['type'] = WPDP::SECTION_TYPE_METADATA;
-
-        $data_header = WPDP_Struct::packHeader($header);
-        $header['ofsMetadata'] = strlen($data_header);
-
-        $data_header = WPDP_Struct::packHeader($header);
-        $data_section = WPDP_Struct::packSection($section);
-
-        $fp->seek(0, SEEK_SET);
-        $fp->write($data_header);
-        $fp->write($data_section);
+        parent::create(WPDP::FILE_TYPE_METADATA, WPDP::SECTION_TYPE_METADATA, $stream);
 
         return true;
     }
@@ -121,8 +108,8 @@ class WPDP_Metadata extends WPDP_Common {
 
         assert('is_int($offset)');
 
-        $this->_seek($offset, SEEK_SET, true);
-        $metadata = WPDP_Struct::unpackMetadata($this->_fp, $this->_header);
+        $this->_seek($offset, SEEK_SET, self::RELATIVE);
+        $metadata = WPDP_Struct::unpackMetadata($this->_stream);
 
         $metadata['_offset'] = $offset;
 
@@ -156,8 +143,8 @@ class WPDP_Metadata extends WPDP_Common {
 
 #ifdef VERSION_WRITABLE
 
-    public function add($args) {
-        assert('is_a($args, \'WPDP_Contents_Args\')');
+    public function add(WPDP_Entry_Args $args) {
+        assert('is_a($args, \'WPDP_Entry_Args\')');
 
         $metadata = WPDP_Struct::create('metadata');
         $metadata['compression'] = $args->compression;
@@ -166,11 +153,11 @@ class WPDP_Metadata extends WPDP_Common {
         $metadata['numChunk'] = $args->chunkCount;
         $metadata['lenOriginal'] = $args->originalLength;
         $metadata['lenCompressed'] = $args->compressedLength;
-        $metadata['ofsContents'] = $args->offset;
+        $metadata['ofsContents'] = $args->contentsOffset;
         $metadata['ofsOffsetTable'] = $args->offsetTableOffset;
         $metadata['ofsChecksumTable'] = $args->checksumTableOffset;
 
-        $metadata['attributes'] = $args->attributes;
+        $metadata['attributes'] = $args->attributes->getArray(); // to be noticed
 
         // 写入该元数据
         $metadata_offset = $this->_writeMetadata($metadata);
@@ -180,11 +167,7 @@ class WPDP_Metadata extends WPDP_Common {
         }
         $this->_section['ofsLast'] = $metadata_offset;
 
-        $args_metadata = new WPDP_Metadata_Args();
-        $args_metadata->offset = $metadata_offset;
-        $args_metadata->attributes = $args->attributes;
-
-        return $args_metadata;
+        $args->metadataOffset = $metadata_offset;
     }
 
 #endif
@@ -202,17 +185,13 @@ class WPDP_Metadata extends WPDP_Common {
      *
      * @return integer 元数据写入位置的偏移量
      */
-    private function _writeMetadata(&$metadata) {
+    private function _writeMetadata(array &$metadata) {
         assert('is_array($metadata)');
 
-//        $this->_seek(0, SEEK_END); // to be noticed
+        $this->_seek(0, SEEK_END, self::ABSOLUTE); // to be noticed
+        $offset = $this->_tell(self::RELATIVE);
 
-        $this->_seek(0, SEEK_END); // to be noticed
-        $offset = $this->_tell(true);
-
-        $data_metadata = WPDP_Struct::packMetadata($metadata, $this->_header);
-        $metadata['ofsNext'] = $offset + strlen($data_metadata);
-        $data_metadata = WPDP_Struct::packMetadata($metadata, $this->_header);
+        $data_metadata = WPDP_Struct::packMetadata($metadata);
         $this->_write($data_metadata);
 
         return $offset;
@@ -221,30 +200,6 @@ class WPDP_Metadata extends WPDP_Common {
     // }}}
 
 #endif
-}
-
-class WPDP_Metadata_Args {
-    // {{{ properties
-
-    /**
-     * 元数据的偏移量
-     *
-     * @access private
-     *
-     * @var integer
-     */
-    public $offset;
-
-    /**
-     * 条目属性
-     *
-     * @access public
-     *
-     * @var array
-     */
-    public $attributes;
-
-    // }}}
 }
 
 ?>

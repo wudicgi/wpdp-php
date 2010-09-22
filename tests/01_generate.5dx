@@ -1,17 +1,6 @@
 <?php
 require_once 'global.php';
 
-$datatypes = array(
-/*
-    WPDP::DATATYPE_INT32 => 1,
-    WPDP::DATATYPE_INT64 => 0,
-    WPDP::DATATYPE_BLOB => 0,
-    WPDP::DATATYPE_TEXT => 0,
-    WPDP::DATATYPE_BINARY => 1,
-*/
-    WPDP::DATATYPE_STRING => 1
-);
-
 $compressions = array(
     WPDP::COMPRESSION_NONE,
     /*
@@ -29,119 +18,108 @@ $checksums = array(
 */
 );
 
-$field_types = array();
-$field_unique = array();
-$attrs_empty = array();
-
-$count_fields = mt_rand(3, 5);
-//$count_fields = mt_rand(5, 10);
-$count_entries = mt_rand(5000, 5000);
-
-echo "Field count: $count_fields\n";
-echo "Entries count: $count_entries\n";
-echo "\n";
-
-$fields = array();
-for ($i = 0; $i < $count_fields; $i++) {
-    $name = random_string(1, 8);
-    $datatype = array_rand($datatypes);
-    $index = $datatypes[$datatype] ? (mt_rand(1, 2) == 1) : false;
-    $unique = ($index && (/*$datatype != WPDP::DATATYPE_INT32 || */mt_rand(1, 2) == 1));
-    echo "Field: $name, $datatype, $index, $unique\n";
-    $fields[] = array($name, $datatype, $index);
-    $field_types[$name] = $datatype;
-    $field_unique[$name] = $unique;
-    $attrs_empty[$name] = null;
-}
-echo "\n";
-
 @unlink('_test.5dp');
 @unlink('_test.5dpi');
 @unlink('_test.5dpm');
-WPDP_File::create('_test.5dp', $fields);
+WPDP_File::create('_test.5dp');
 
 $db = new WPDP_File('_test.5dp', WPDP::MODE_READWRITE);
 
-echo 'Generating: ';
-
-// allows max 1000000000 / 100 = 1000 0000 entries
-$rand_int_1 = mt_rand(-2147483648, 1147483647 - 1000000000);
-$rand_int_2 = mt_rand(1, 100);
-
 $fp = fopen('_entries.txt', 'wb');
 
-for ($i = 0; $i < $count_entries; $i++) {
-    printf('%8d / %8d', $i + 1, $count_entries);
-//    echo "### " . ($i + 1) . " ###\n";
+$fields_all = array();
+$count_all = 0;
 
-    $contents = random_string(1, 512 * 1024);
+$k = 0;
+for ($j = 0; $j < 5; $j++) {
+    $count_fields = mt_rand(5, 10);
+    $count_entries = mt_rand(50, 100);
 
-    $compression = random_item($compressions, 3);
-    $checksum = random_item($checksums, 3);
+    $count_all += $count_entries;
 
-    $attrs = $attrs_empty;
-    foreach ($attrs as $name => $ttt) {
-        switch ($field_types[$name]) {
-            case WPDP::DATATYPE_INT32:
-                if ($field_unique[$name]) {
-                    $attrs[$name] = $rand_int_1 + $i * $rand_int_2;
-                } else {
-                    $attrs[$name] = mt_rand(-2147483648, 2147483647);
-                }
-                break;
-/*
-            case WPDP::DATATYPE_INT64:
-                $attrs[$name] = mt_rand(-9223372036854775808, 9223372036854775807);
-                break;
-*/
-            case WPDP::DATATYPE_BLOB:
-            case WPDP::DATATYPE_TEXT:
-                $attrs[$name] = random_string(1, 512) . '/' . $name;
-                break;
-            case WPDP::DATATYPE_BINARY:
-                if ($field_unique[$name]) {
-                    $attrs[$name] = random_binary(1, 196) . '/' . $name . '/' . $i . '/' . random_binary(1, 32);
-                } else {
-                    $attrs[$name] = random_binary(1, 196) . '/' . $name . '/' . random_binary(1, 32);
-                }
-                break;
-            case WPDP::DATATYPE_STRING:
-                if ($field_unique[$name]) {
-                    $attrs[$name] = random_string(1, 196) . '/' . $name . '/' . $i . '/' . random_string(1, 32);
-                } else {
-                    $attrs[$name] = random_string(1, 196) . '/' . $name . '/' . random_string(1, 32);
-                }
-                break;
-            default:
-                echo "Error!\n";
-                exit;
+    echo "Field count: $count_fields\n";
+    echo "Entries count: $count_entries\n";
+    echo "\n";
+
+    $fields = array();
+    $fields_index = array();
+    for ($i = 0; $i < $count_fields; $i++) {
+        $name = random_string(3, 12);
+
+        if (!array_key_exists($name, $fields_all)) {
+            $index = random_bool(2);
+            $unique = random_bool(2);
+            $fields_all[$name] = array(
+                'name' => $name,
+                'index' => $index,
+                'unique' => $unique
+            );
         }
+
+        $fields[$name] = $fields_all[$name];
+
+        if ($fields[$name]['index']) {
+            $fields_index[] = $name;
+        }
+
+        echo "Field: " . $name . ", " . $fields[$name]['index'] . ", " . $fields[$name]['unique'] . "\n";
+    }
+    echo "\n";
+
+    echo 'Generating: ';
+    for ($i = 0; $i < $count_entries; $i++) {
+        printf('%8d / %8d', $i + 1, $count_entries);
+//        echo "### " . ($i + 1) . " ###\n";
+
+        $contents = random_string(1, 512 * 1024);
+
+        $compression = random_item($compressions, 3);
+        $checksum = random_item($checksums, 3);
+
+        $attrs = array();
+        foreach ($fields as $field_name => $field) {
+            /*
+            if ($field['unique']) {
+                $attrs[$field_name] = random_binary(1, 196) . '/' . $field_name . '/' . $i . '/' . random_binary(1, 32);
+            } else {
+                $attrs[$field_name] = random_binary(1, 196) . '/' . $field_name . '/' . random_binary(1, 32);
+            }
+            */
+            if ($field['unique']) {
+                $attrs[$field_name] = random_string(1, 196) . '/' . $field_name . '/' . $i . '/' . random_string(1, 32);
+            } else {
+                $attrs[$field_name] = random_string(1, 196) . '/' . $field_name . '/' . random_string(1, 32);
+            }
+        }
+
+        fwrite($fp, base64_encode(serialize(array(
+            'number' => ($k++),
+            'comp' => $compression,
+            'chk' => $checksum,
+            'attrs' => $attrs,
+            'conts' => md5($contents)
+        )))."\n");
+
+        $db->setCompression($compression);
+        $db->setChecksum($checksum);
+        $db->setIndexedAttributeNames($fields_index);
+
+        $db->begin($attrs, strlen($contents));
+        $db->transfer($contents);
+        $db->commit();
+
+        echo BACKSPACE_19;
     }
 
-    fwrite($fp, base64_encode(serialize(array(
-        'number' => $i,
-        'comp' => $compression,
-        'chk' => $checksum,
-        'attrs' => $attrs,
-//        'attrs' => md5(serialize($attrs)),
-        'conts' => md5($contents)
-    )))."\n");
-
-    $db->begin(strlen($contents), $attrs, $compression, $checksum);
-    $db->transfer($contents);
-    $db->commit();
-
-    echo BACKSPACE_19;
+    echo "\n";
+    echo "\n";
 }
 
 fclose($fp);
 
 file_put_contents('_info.txt', serialize(array(
-    $count_entries, $field_unique
+    $count_all, $fields_all
 )));
-
-echo "\n";
-echo "\n";
 
 $db->close();
 

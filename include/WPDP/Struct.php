@@ -27,7 +27,7 @@
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
  * @version    SVN: $Id$
- * @link       http://wudilabs.org/
+ * @link       http://www.wudilabs.org/
  */
 
 /**
@@ -38,7 +38,7 @@
  * @author     Wudi Liu <wudicgi@gmail.com>
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
- * @link       http://wudilabs.org/
+ * @link       http://www.wudilabs.org/
  */
 class WPDP_Struct {
     private static $_structs = array(
@@ -51,12 +51,13 @@ class WPDP_Struct {
                 'limit' => 'C', // 文件限制
                 'encoding' => 'C', // 文本编码
                 '__reserved_char' => 'C', // 保留
-                'lenBlock' => 'v', // 块长度
-                'lenActual' => 'v', // 实际内容长度
                 'ofsContents' => 'V', // 条目的偏移量
                 'ofsMetadata' => 'V', // 条目的偏移量
                 'ofsIndexes' => 'V', // 索引的偏移量
-                '__reserved' => 'a36' // 填充块头部到 64 bytes
+                '__reserved_ofs_0' => 'V',
+                '__reserved_ofs_1' => 'V',
+                '__reserved_ofs_2' => 'V',
+                '__reserved' => 'a476' // 填充块到 512 bytes
             ),
             'default' => array(
                 'signature' => WPDP::HEADER_SIGNATURE,
@@ -66,11 +67,12 @@ class WPDP_Struct {
                 'limit' => WPDP::FILE_LIMIT_INT32,
                 'encoding' => WPDP::ENCODING_UTF8,
                 '__reserved_char' => 0,
-                'lenBlock' => 0,
-                'lenActual' => 0,
                 'ofsContents' => 0,
                 'ofsMetadata' => 0,
                 'ofsIndexes' => 0,
+                '__reserved_ofs_0' => 0,
+                '__reserved_ofs_1' => 0,
+                '__reserved_ofs_2' => 0,
                 '__reserved' => '',
             )
         ),
@@ -81,7 +83,8 @@ class WPDP_Struct {
                 '__reserved_char' => 'C', // 保留
                 'ofsFirst' => 'V',
                 'ofsLast' => 'V',
-                '__reserved' => 'a498' // 填充块到 512 bytes
+                'ofsSpecial' => 'V',
+                '__reserved' => 'a494' // 填充块到 512 bytes
             ),
             'default' => array(
                 'signature' => WPDP::SECTION_SIGNATURE,
@@ -89,6 +92,7 @@ class WPDP_Struct {
                 '__reserved_char' => 0,
                 'ofsFirst' => 0,
                 'ofsLast' => 0,
+                'ofsSpecial' => 0,
                 '__reserved' => ''
             )
         ),
@@ -107,7 +111,7 @@ class WPDP_Struct {
                 'ofsOffsetTable' => 'V', // 分块偏移量表的偏移量
                 'ofsChecksumTable' => 'V', // 分块校验值表的偏移量
                 'ofsContents' => 'V', // 第一个分块的偏移量
-                '__reserved' => 'a88' // 填充块头部到 128 bytes
+                '__reserved' => 'a24' // 填充块头部到 64 bytes
             ),
             'default' => array(
                 'signature' => WPDP::METADATA_SIGNATURE,
@@ -126,20 +130,36 @@ class WPDP_Struct {
                 '__reserved' => ''
             )
         ),
+        'indexes' => array(
+            'blocks' => array(
+                'signature' => 'V', // 块标识
+                'lenBlock' => 'v', // 块长度
+                'lenActual' => 'v', // 实际内容长度
+                '__reserved' => 'a24' // 填充块头部到 32 bytes
+            ),
+            'default' => array(
+                'signature' => WPDP::INDEXES_SIGNATURE,
+                'lenBlock' => 0,
+                'lenActual' => 0,
+                '__reserved' => ''
+            )
+        ),
         'node' => array(
             'blocks' => array(
                 'signature' => 'V', // 块标识
                 'isLeaf' => 'C', // 是否为叶子结点
-                'dataType' => 'C', // 元素数据类型
+                '__reserved_char' => 'C',
                 'numElement' => 'V', // 元素数量
                 'ofsExtra' => 'V', // 补充偏移量 (局部)
+                // 对于叶子节点，ofsExtra 为下一个相邻叶子节点的偏移量
+                // 对于普通结点，ofsExtra 为比第一个键还要小的键所在结点的偏移量
                 '__reserved' => 'a18' // 填充块到 32 bytes
                 // to be noticed, related to NODE_DATA_SIZE
             ),
             'default' => array(
                 'signature' => WPDP::NODE_SIGNATURE,
                 'isLeaf' => 0,
-                'dataType' => WPDP::DATATYPE_STRING,
+                '__reserved_char' => 0,
                 'numElement' => 0,
                 'ofsExtra' => 0,
                 '__reserved' => ''
@@ -164,6 +184,7 @@ class WPDP_Struct {
             $struct['format'] = implode('/', $parts);
             $struct['size'] = $size;
         }
+        unset($struct);
     }
 
 #ifdef VERSION_WRITABLE
@@ -175,12 +196,14 @@ class WPDP_Struct {
 
         switch ($type) {
             case 'header':
-                $object['fields'] = array();
                 break;
             case 'section':
                 break;
             case 'metadata':
                 $object['attributes'] = array();
+                break;
+            case 'indexes':
+                $object['indexes'] = array();
                 break;
             case 'node':
                 $object['elements'] = array();
@@ -199,42 +222,24 @@ class WPDP_Struct {
 
 #ifdef VERSION_WRITABLE
 
-    public static function packHeader(&$object) {
+    public static function packHeader(array &$object) {
         assert('is_array($object)');
 
-        $blob = self::_packHeaderBlob($object);
-
-        $data = self::_packVariant('header', $object, $blob);
+        $data = self::_packFixed('header', $object);
 
         return $data;
     }
 
 #endif
 
-    public static function unpackHeader(&$fp, $noblob = false) {
-        assert('is_a($fp, \'WPDP_FileHandler\')');
-//        assert('is_resource($fp)');
+    public static function unpackHeader(WPIO_Stream $stream) {
+        assert('is_a($stream, \'WPIO_Stream\')');
 
-        $object = self::_unpackVariant('header', $fp, $noblob);
+        $object = self::_unpackFixed('header', $stream);
 
         if ($object['signature'] != WPDP::HEADER_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
                 $object['signature'], WPDP::HEADER_SIGNATURE));
-        }
-
-        if ($noblob) {
-            return $object;
-        }
-
-        $object['fields'] = self::_unpackHeaderBlob($object['_blob']);
-        unset($object['_blob']);
-
-        $object['_lookup'] = array();
-        foreach ($object['fields'] as $name => &$field) {
-            $object['_lookup'][$field['number']] = array(
-                'name' => $field['name'],
-                'type' => $field['type']
-            );
         }
 
         return $object;
@@ -242,28 +247,20 @@ class WPDP_Struct {
 
 #ifdef VERSION_WRITABLE
 
-    public static function packSection(&$object) {
+    public static function packSection(array &$object) {
         assert('is_array($object)');
 
-        $data = '';
-        // 追加各信息
-        foreach (self::$_structs['section']['blocks'] as $name => $code) {
-            $data .= pack($code, $object[$name]);
-        }
+        $data = self::_packFixed('section', $object);
 
         return $data;
     }
 
 #endif
 
-    public static function unpackSection(&$fp) {
-        assert('is_a($fp, \'WPDP_FileHandler\')');
-//        assert('is_resource($fp)');
+    public static function unpackSection(WPIO_Stream $stream) {
+        assert('is_a($stream, \'WPIO_Stream\')');
 
-        $data = $fp->read(self::$_structs['section']['size']);
-
-        // 读取各信息
-        $object = unpack(self::$_structs['section']['format'], $data);
+        $object = self::_unpackFixed('section', $stream);
 
         if ($object['signature'] != WPDP::SECTION_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
@@ -275,11 +272,10 @@ class WPDP_Struct {
 
 #ifdef VERSION_WRITABLE
 
-    public static function packMetadata(&$object, &$header) {
+    public static function packMetadata(array &$object) {
         assert('is_array($object)');
-        assert('is_array($header)');
 
-        $blob = self::_packMetadataBlob($object, $header['fields']);
+        $blob = self::_packMetadataBlob($object);
 
         $data = self::_packVariant('metadata', $object, $blob);
 
@@ -288,12 +284,10 @@ class WPDP_Struct {
 
 #endif
 
-    public static function unpackMetadata(&$fp, &$header, $noblob = false) {
-        assert('is_a($fp, \'WPDP_FileHandler\')');
-//        assert('is_resource($fp)');
-        assert('is_array($header)');
+    public static function unpackMetadata(WPIO_Stream $stream, $noblob = false) {
+        assert('is_a($stream, \'WPIO_Stream\')');
 
-        $object = self::_unpackVariant('metadata', $fp, $noblob);
+        $object = self::_unpackVariant('metadata', $stream, $noblob);
 
         if ($object['signature'] != WPDP::METADATA_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
@@ -304,7 +298,7 @@ class WPDP_Struct {
             return $object;
         }
 
-        $object['attributes'] = self::_unpackMetadataBlob($object['_blob'], $header['_lookup']);
+        $object['attributes'] = self::_unpackMetadataBlob($object['_blob']);
         unset($object['_blob']);
 
         return $object;
@@ -312,7 +306,41 @@ class WPDP_Struct {
 
 #ifdef VERSION_WRITABLE
 
-    public static function packNode(&$object) {
+    public static function packIndexes(array &$object) {
+        assert('is_array($object)');
+
+        $blob = self::_packIndexesBlob($object);
+
+        $data = self::_packVariant('indexes', $object, $blob);
+
+        return $data;
+    }
+
+#endif
+
+    public static function unpackIndexes(WPIO_Stream $stream, $noblob = false) {
+        assert('is_a($stream, \'WPIO_Stream\')');
+
+        $object = self::_unpackVariant('indexes', $stream, $noblob);
+
+        if ($object['signature'] != WPDP::INDEXES_SIGNATURE) {
+            throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
+                $object['signature'], WPDP::INDEXES_SIGNATURE));
+        }
+
+        if ($noblob) {
+            return $object;
+        }
+
+        $object['indexes'] = self::_unpackIndexesBlob($object['_blob']);
+        unset($object['_blob']);
+
+        return $object;
+    }
+
+#ifdef VERSION_WRITABLE
+
+    public static function packNode(array &$object) {
         assert('is_array($object)');
 
         // 计算该结点所含元素数
@@ -320,24 +348,14 @@ class WPDP_Struct {
 
         // 获取可变长度区域的二进制数据
         $blob = '';
-        if ($object['dataType'] == WPDP::DATATYPE_INT32) {
-            foreach ($object['elements'] as $elem) {
-                $blob .= pack('V', $elem['key']); // key
-                $blob .= pack('V', $elem['value']); // offset
-            }
-            // 在结尾补充 NULL 值使块长度达到 NODE_BLOCK_SIZE
-            $blob .= str_repeat("\x00", WPDP::NODE_DATA_SIZE - strlen($blob));
-        } elseif ($object['dataType'] == WPDP::DATATYPE_BINARY ||
-                  $object['dataType'] == WPDP::DATATYPE_STRING) {
-            $string = '';
-            foreach ($object['elements'] as $elem) {
-                $string = pack('C', strlen($elem['key'])) . $elem['key'] . $string;
-                $blob .= pack('v', WPDP::NODE_BLOCK_SIZE - strlen($string)); // pointer to key
-                $blob .= pack('V', $elem['value']); // offset
-            }
-            // 在 string 前补充 NULL 值使块长度达到 NODE_BLOCK_SIZE
-            $blob .= str_pad($string, WPDP::NODE_DATA_SIZE - strlen($blob), "\x00", STR_PAD_LEFT);
+        $string = '';
+        foreach ($object['elements'] as $elem) {
+            $string = pack('C', strlen($elem['key'])) . $elem['key'] . $string;
+            $blob .= pack('v', WPDP::NODE_BLOCK_SIZE - strlen($string)); // pointer to key
+            $blob .= pack('V', $elem['value']); // offset
         }
+        // 在 string 前补充 NULL 值使块长度达到 NODE_BLOCK_SIZE
+        $blob .= str_pad($string, WPDP::NODE_DATA_SIZE - strlen($blob), "\x00", STR_PAD_LEFT);
 
         $data = '';
         // 追加块头部信息
@@ -354,19 +372,19 @@ class WPDP_Struct {
 
 #endif
 
-    public static function unpackNode(&$fp) {
-        assert('is_a($fp, \'WPDP_FileHandler\')');
-//        assert('is_resource($fp)');
+    public static function unpackNode(WPIO_Stream $stream) {
+        assert('is_a($stream, \'WPIO_Stream\')');
 
-        $data = $fp->read(WPDP::NODE_BLOCK_SIZE);
+        $offset = $stream->tell();
+        $data = $stream->read(WPDP::NODE_BLOCK_SIZE);
 
         // 读取块头部信息
         $head = substr($data, 0, self::$_structs['node']['size']);
         $object = unpack(self::$_structs['node']['format'], $head);
 
         if ($object['signature'] != WPDP::NODE_SIGNATURE) {
-            throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
-                $object['signature'], WPDP::NODE_SIGNATURE));
+            throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X @ 0x%X",
+                $object['signature'], WPDP::NODE_SIGNATURE, $offset));
         }
 
         $object['elements'] = array();
@@ -378,24 +396,13 @@ class WPDP_Struct {
         $n = 0;
         $pos_base = 0;
         $head_size = self::$_structs['node']['size'];
-        if ($object['dataType'] == WPDP::DATATYPE_INT32) {
-            while ($n < $object['numElement']) {
-                $temp = unpack('Vkey/Voffset', substr($blob, $pos_base, 8));
-                $object['elements'][] = array('key' => $temp['key'], 'value' => $temp['offset']);
-                $object['_size'] += 4 + 4;
-                $pos_base += 8;
-                $n++;
-            }
-        } elseif ($object['dataType'] == WPDP::DATATYPE_BINARY ||
-                  $object['dataType'] == WPDP::DATATYPE_STRING) {
-            while ($n < $object['numElement']) {
-                $temp = unpack('vstr/Voffset', substr($blob, $pos_base, 6));
-                $key = substr($blob, $temp['str'] + 1 - $head_size, ord($blob{$temp['str'] - $head_size}));
-                $object['elements'][] = array('key' => $key, 'value' => $temp['offset']);
-                $object['_size'] += 2 + 4 + 1 + strlen($key);
-                $pos_base += 6;
-                $n++;
-            }
+        while ($n < $object['numElement']) {
+            $temp = unpack('vstr/Voffset', substr($blob, $pos_base, 6));
+            $key = substr($blob, $temp['str'] + 1 - $head_size, ord($blob{$temp['str'] - $head_size}));
+            $object['elements'][] = array('key' => $key, 'value' => $temp['offset']);
+            $object['_size'] += 2 + 4 + 1 + strlen($key);
+            $pos_base += 6;
+            $n++;
         }
 
         return $object;
@@ -403,7 +410,37 @@ class WPDP_Struct {
 
 #ifdef VERSION_WRITABLE
 
-    private static function _packVariant($type, &$object, &$blob) {
+    private static function _packFixed($type, array &$object) {
+        assert('is_string($type) && isset(self::$_structs[$type])');
+        assert('is_array($object)');
+
+        $data = '';
+
+        // 追加各信息
+        foreach (self::$_structs[$type]['blocks'] as $name => $code) {
+            $data .= pack($code, $object[$name]);
+        }
+
+        return $data;
+    }
+
+#endif
+
+    private static function _unpackFixed($type, WPIO_Stream $stream) {
+        assert('is_string($type) && isset(self::$_structs[$type])');
+        assert('is_a($stream, \'WPIO_Stream\')');
+
+        $data = $stream->read(self::$_structs[$type]['size']);
+
+        // 读取各信息
+        $object = unpack(self::$_structs[$type]['format'], $data);
+
+        return $object;
+    }
+
+#ifdef VERSION_WRITABLE
+
+    private static function _packVariant($type, array &$object, &$blob) {
         assert('is_string($type) && isset(self::$_structs[$type])');
         assert('is_array($object)');
         assert('is_string($blob)');
@@ -433,15 +470,14 @@ class WPDP_Struct {
 
 #endif
 
-    private static function _unpackVariant($type, &$fp, $noblob) {
+    private static function _unpackVariant($type, WPIO_Stream $stream, $noblob) {
         assert('is_string($type) && isset(self::$_structs[$type])');
-        assert('is_a($fp, \'WPDP_FileHandler\')');
-//        assert('is_resource($fp)');
+        assert('is_a($stream, \'WPIO_Stream\')');
 
         // 获取该结构类型的默认块大小
         $block_size = self::_getBlockSize($type);
 
-        $data = $fp->read($block_size);
+        $data = $stream->read($block_size);
 
         // 读取块头部信息
         $head = substr($data, 0, self::$_structs[$type]['size']);
@@ -453,7 +489,7 @@ class WPDP_Struct {
 
         // 若实际块大小比默认块大小大，读取剩余部分
         if ($object['lenBlock'] > $block_size) {
-            $data .= $fp->read($object['lenBlock'] - $block_size);
+            $data .= $stream->read($object['lenBlock'] - $block_size);
         }
 
         // 获取可变长度区域的二进制数据
@@ -461,50 +497,6 @@ class WPDP_Struct {
                            $object['lenActual'] - self::$_structs[$type]['size']);
 
         return $object;
-    }
-
-#ifdef VERSION_WRITABLE
-
-    private static function _packHeaderBlob(&$object) {
-        assert('is_array($object)');
-
-        $blob = '';
-
-        foreach ($object['fields'] as $field) {
-            $blob .= pack('C', $field['number']);
-            $blob .= pack('C', $field['type']);
-            $blob .= pack('C', $field['index']);
-            $blob .= pack('V', $field['ofsRoot']);
-            $blob .= pack('C', strlen($field['name']));
-            $blob .= $field['name'];
-        }
-
-        return $blob;
-    }
-
-#endif
-
-    private static function _unpackHeaderBlob($blob) {
-        assert('is_string($blob)');
-
-        $length = strlen($blob);
-        $fields = array();
-
-        $i = 0;
-        while ($i < $length) {
-            $temp = unpack('Cnumber/Ctype/Cindex/VofsRoot/Cnamelen', substr($blob, $i, 8));
-            $name = substr($blob, $i + 8, $temp['namelen']);
-            $fields[$name] = array(
-                'number' => $temp['number'],
-                'type' => $temp['type'],
-                'index' => $temp['index'],
-                'ofsRoot' => $temp['ofsRoot'],
-                'name' => $name
-            );
-            $i += 8 + $temp['namelen'];
-        }
-
-        return $fields;
     }
 
 #ifdef VERSION_WRITABLE
@@ -518,38 +510,17 @@ class WPDP_Struct {
      *
      * @param array $object  元数据
      */
-    private static function _packMetadataBlob(&$object, &$fields) {
+    private static function _packMetadataBlob(array &$object) {
         assert('is_array($object)');
-        assert('is_array($fields)');
 
         $blob = '';
 
-        foreach ($object['attributes'] as $key => $value) {
-            $blob .= pack('C', $fields[$key]['number']);
-            switch ($fields[$key]['type']) {
-                case WPDP::DATATYPE_INT32:
-                    $blob .= pack('V', $value);
-                    break;
-                case WPDP::DATATYPE_INT64:
-                    $blob .= pack('V', $value & 0xFFFFFFFF);
-                    $blob .= pack('V', $value >> 32);
-                    break;
-                case WPDP::DATATYPE_BLOB:
-                case WPDP::DATATYPE_TEXT:
-                    $blob .= pack('v', strlen($value));
-                    $blob .= $value;
-                    break;
-                case WPDP::DATATYPE_BINARY:
-                case WPDP::DATATYPE_STRING:
-                    $blob .= pack('C', strlen($value));
-                    $blob .= $value;
-                    break;
-                // DEBUG: BEGIN ASSERT
-                default:
-                    assert('false');
-                    break;
-                // DEBUG: END ASSERT
-            }
+        foreach ($object['attributes'] as $attr) {
+            $blob .= pack('C', ($attr['index'] ? 0x01 : 0x00));
+            $blob .= pack('C', strlen($attr['name']));
+            $blob .= $attr['name'];
+            $blob .= pack('v', strlen($attr['value']));
+            $blob .= $attr['value'];
         }
 
         return $blob;
@@ -568,52 +539,80 @@ class WPDP_Struct {
      *
      * @param array $object  元数据
      */
-    private static function _unpackMetadataBlob($blob, &$lookup) {
+    private static function _unpackMetadataBlob($blob) {
         assert('is_string($blob)');
-        assert('is_array($lookup)');
 
         $length = strlen($blob);
         $attributes = array();
 
         $i = 0;
         while ($i < $length) {
-            $temp = unpack('Cnumber', $blob[$i]);
-            $i++;
-            $name = $lookup[$temp['number']]['name'];
-            switch ($lookup[$temp['number']]['type']) {
-                case WPDP::DATATYPE_INT32:
-                    $temp2 = unpack('Vvalue', substr($blob, $i, 4));
-                    $i += 4;
-                    $attributes[$name] = $temp2['value'];
-                    break;
-                case WPDP::DATATYPE_INT64:
-                    $temp2 = unpack('Vlow/Vhigh', substr($blob, $i, 8));
-                    $i += 8;
-                    $attributes[$name] = $temp2['low'] + $temp2['high'] << 32;
-                    break;
-                case WPDP::DATATYPE_BLOB:
-                case WPDP::DATATYPE_TEXT:
-                    $temp2 = unpack('vlen', substr($blob, $i, 2));
-                    $i += 2;
-                    $attributes[$name] = substr($blob, $i, $temp2['len']);
-                    $i += $temp2['len'];
-                    break;
-                case WPDP::DATATYPE_BINARY:
-                case WPDP::DATATYPE_STRING:
-                    $temp2 = unpack('Clen', $blob[$i]);
-                    $i++;
-                    $attributes[$name] = substr($blob, $i, $temp2['len']);
-                    $i += $temp2['len'];
-                    break;
-                // DEBUG: BEGIN ASSERT
-                default:
-                    assert('false');
-                    break;
-                // DEBUG: END ASSERT
-            }
+            $temp = unpack('Cindex', $blob{$i});
+            $i += 1;
+            $index = ($temp['index'] == 1);
+
+            $temp = unpack('Clen', $blob{$i});
+            $i += 1;
+            $name = substr($blob, $i, $temp['len']);
+            $i += $temp['len'];
+
+            $temp = unpack('vlen', substr($blob, $i, 2));
+            $i += 2;
+            $value = substr($blob, $i, $temp['len']);
+            $i += $temp['len'];
+
+            $attributes[$name] = array(
+                'name' => $name,
+                'value' => $value,
+                'index' => $index
+            );
         }
 
         return $attributes;
+    }
+
+#ifdef VERSION_WRITABLE
+
+    private static function _packIndexesBlob(array &$object) {
+        assert('is_array($object)');
+
+        $blob = '';
+
+        foreach ($object['indexes'] as $index) {
+            $blob .= pack('C', strlen($index['name']));
+            $blob .= $index['name'];
+            $blob .= pack('V', $index['ofsRoot']);
+        }
+
+        return $blob;
+    }
+
+#endif
+
+    private static function _unpackIndexesBlob($blob) {
+        assert('is_string($blob)');
+
+        $length = strlen($blob);
+        $indexes = array();
+
+        $i = 0;
+        while ($i < $length) {
+            $temp = unpack('Clen', $blob{$i});
+            $i += 1;
+            $name = substr($blob, $i, $temp['len']);
+            $i += $temp['len'];
+
+            $temp2 = unpack('VofsRoot', substr($blob, $i, 4));
+            $i += 4;
+            $offset = $temp2['ofsRoot'];
+
+            $indexes[$name] = array(
+                'name' => $name,
+                'ofsRoot' => $offset
+            );
+        }
+
+        return $indexes;
     }
 
     // 获取结构块大小 (各结构类型块大小固定)
@@ -621,11 +620,11 @@ class WPDP_Struct {
         assert('is_string($type)');
 
         switch ($type) {
-            case 'header':
-                $block_size = WPDP::HEADER_BLOCK_SIZE;
-                break;
             case 'metadata':
                 $block_size = WPDP::METADATA_BLOCK_SIZE;
+                break;
+            case 'indexes':
+                $block_size = WPDP::INDEXES_BLOCK_SIZE;
                 break;
             // DEBUG: BEGIN ASSERT
             default:

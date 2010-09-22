@@ -4,7 +4,7 @@ function test_correction(&$db) {
 
     $iterator = $db->iterator();
 
-    list ($count_entries, $field_unique) = unserialize(file_get_contents('_info.txt'));
+    list ($count_entries, $fields) = unserialize(file_get_contents('_info.txt'));
 
     $fp = fopen('_entries.txt', 'rb');
 
@@ -19,16 +19,18 @@ function test_correction(&$db) {
         $entry_saved = unserialize(base64_decode($line));
 
         $info = $entry->information();
-        if ($info['compression'] != $entry_saved['comp'] ||
-            $info['checksum'] != $entry_saved['chk']) {
+        if ($info->compression != $entry_saved['comp'] ||
+            $info->checksum != $entry_saved['chk']) {
             echo ', info failed';
             exit;
         }
 
-        $attrs = $entry->attributes();
+        $attrs = $entry->attributes()->getNameValueArray();
         if (count(array_diff_assoc($attrs, $entry_saved['attrs']))) {
     //    if (md5(serialize($attrs)) != $entry_saved['attrs']) {
             echo ', attrs failed';
+            print_r($entry_saved['attrs']);
+            print_r($attrs);
             exit;
         }
 
@@ -49,7 +51,7 @@ function test_correction(&$db) {
 function test_query(&$db) {
     echo "Query:\n";
 
-    list ($count_entries, $field_unique) = unserialize(file_get_contents('_info.txt'));
+    list ($count_entries, $fields) = unserialize(file_get_contents('_info.txt'));
 
     $fp = fopen('_entries.txt', 'rb');
 
@@ -71,8 +73,14 @@ function test_query(&$db) {
 
         $flag = false;
 
-        foreach ($field_unique as $name => $unique) {
-            if (!$unique) {
+        foreach ($fields as $field) {
+            if (!$field['index'] || !$field['unique']) {
+                continue;
+            }
+
+            $name = $field['name'];
+
+            if (!array_key_exists($name, $entry_saved['attrs'])) {
                 continue;
             }
 
@@ -101,8 +109,8 @@ function test_query(&$db) {
 
             if ($attrs[$name] != $entry_saved['attrs'][$name]) {
                 echo ", attrs failed\n";
-                print_r($attrs);
                 print_r($entry_saved['attrs']);
+                print_r($attrs);
                 $db->close();
                 exit;
             }

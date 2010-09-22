@@ -1,5 +1,5 @@
 <?php
-$debug = 0;
+$debug = 1;
 
 set_include_path(($debug ? '../include' : '../release') . PATH_SEPARATOR . get_include_path());
 
@@ -24,8 +24,12 @@ assert_options(ASSERT_CALLBACK, 'assert_handler');
 require_once 'WPDP.php';
 require_once 'units.php';
 
+function random_bool($denominator) {
+    return (mt_rand(1, $denominator) == 1);
+}
+
 function random_item(&$arr, $tmp) {
-    return (mt_rand(1, $tmp) == 1) ? array_rand($arr) : $arr[0];
+    return (random_bool($tmp) ? array_rand($arr) : $arr[0]);
 }
 
 function random_string($minlen, $maxlen) {
@@ -44,6 +48,7 @@ function debug($str) {
 }
 
 function trace($method, $str, $extra = true) {
+    static $fp = null;
     static $traced = array(
 /*
         'WPDP_Metadata::getMetadata' => 1,
@@ -61,10 +66,21 @@ function trace($method, $str, $extra = true) {
         'WPDP_Indexes::find' => 1,
         'WPDP_Indexes::close' => 1,
     );
+    /*
+    if ($fp == null) {
+        $fp = fopen('_trace_log.txt', 'wb');
+    }
+    fwrite($fp, ($extra ? "$method: " : "") . "$str\n");
+    */
     return;
+    if ($method != 'WPDP_Contents::getContents') {
+        return;
+    }
+    /*
     if (substr($method, 0, 18) != 'WPDP_FileHandler::') {
         return;
     }
+    */
     /*
     if ($method == 'WPDP_Indexes::_getNode' ||
         $method == 'WPDP_Indexes::_nodeKeyCompare' ||
