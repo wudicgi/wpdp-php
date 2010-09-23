@@ -59,7 +59,7 @@ class WPDP {
      * @global integer SECTION_SIGNATURE        区域信息的标识
      * @global integer METADATA_SIGNATURE       元数据的标识
      * @global integer INDEX_TABLE_SIGNATURE    索引表的标识
-     * @global integer NODE_SIGNATURE           索引结点的标识
+     * @global integer NODE_SIGNATURE           结点的标识
      */
     const HEADER_SIGNATURE = 0x50445057; // WPDP
     const SECTION_SIGNATURE = 0x54434553; // SECT
@@ -67,16 +67,21 @@ class WPDP {
     const INDEX_TABLE_SIGNATURE = 0x54584449; // IDXT
     const NODE_SIGNATURE = 0x45444F4E; // NODE
 
+    /**
+     * 属性信息的标识常量
+     *
+     * @global integer ATTRIBUTE_SIGNATURE  属性信息的标识
+     */
     const ATTRIBUTE_SIGNATURE = 0xD5; // 0x61 + 0x74
 
     /**
-     * 区域类型
+     * 区域类型常量
      *
      * 为了可以按位组合，方便表示含有哪些区域，采用 2 的整次幂
      *
-     * @global integer SECTION_TYPE_CONTENTS  内容
-     * @global integer SECTION_TYPE_METADATA  元数据
-     * @global integer SECTION_TYPE_INDEXES   索引
+     * @global integer SECTION_TYPE_CONTENTS    内容
+     * @global integer SECTION_TYPE_METADATA    元数据
+     * @global integer SECTION_TYPE_INDEXES     索引
      */
     const SECTION_TYPE_UNDEFINED = 0x00;
     const SECTION_TYPE_CONTENTS = 0x01;
@@ -114,7 +119,7 @@ class WPDP {
     /**
      * 各类型结构的其他大小常量
      *
-     * @global integer NODE_DATA_SIZE  索引结点的数据区域大小
+     * @global integer NODE_DATA_SIZE   索引结点的数据区域大小
      */
     const NODE_DATA_SIZE = 4064; // NODE_BLOCK_SIZE - 32
 
@@ -132,9 +137,9 @@ class WPDP {
     /**
      * 头信息标记常量
      *
-     * @global integer HEADER_FLAG_NONE      无任何标记
-     * @global integer HEADER_FLAG_RESERVED  保留标记
-     * @global integer HEADER_FLAG_READONLY  是只读文件
+     * @global integer HEADER_FLAG_NONE     无任何标记
+     * @global integer HEADER_FLAG_RESERVED 保留标记
+     * @global integer HEADER_FLAG_READONLY 是只读文件
      */
     const HEADER_FLAG_NONE = 0x0000;
     const HEADER_FLAG_RESERVED = 0x0001;
@@ -166,11 +171,11 @@ class WPDP {
      *     C#:   YES,    YES,   YES,     NO
      *    C++:   YES,    YES,   YES,     NO
      *
-     * @global integer FILE_LIMIT_UNDEFINED  未定义
-     * @global integer FILE_LIMIT_INT32      文件最大 2GB
-     * @global integer FILE_LIMIT_UINT32     文件最大 4GB (不使用)
-     * @global integer FILE_LIMIT_INT64      文件最大 8EB
-     * @global integer FILE_LIMIT_UINT64     文件最大 16EB (不使用)
+     * @global integer FILE_LIMIT_UNDEFINED 未定义
+     * @global integer FILE_LIMIT_INT32     文件最大 2GB
+     * @global integer FILE_LIMIT_UINT32    文件最大 4GB (不使用)
+     * @global integer FILE_LIMIT_INT64     文件最大 8EB
+     * @global integer FILE_LIMIT_UINT64    文件最大 16EB (不使用)
      */
     const FILE_LIMIT_UNDEFINED = 0x00;
     const FILE_LIMIT_INT32 = 0x01;
@@ -181,11 +186,11 @@ class WPDP {
     /**
      * 编码类型常量
      *
-     * @global integer ENCODING_UNDEFINED  编码未指定
-     * @global integer ENCODING_ANSI       ANSI 编码
-     * @global integer ENCODING_UTF8       UTF-8 编码
-     * @global integer ENCODING_UTF16LE    UTF-16 Little Endian 编码
-     * @global integer ENCODING_UTF16BE    UTF-16 Big Endian 编码
+     * @global integer ENCODING_UNDEFINED   编码未指定
+     * @global integer ENCODING_ANSI        ANSI 编码
+     * @global integer ENCODING_UTF8        UTF-8 编码
+     * @global integer ENCODING_UTF16LE     UTF-16 Little Endian 编码
+     * @global integer ENCODING_UTF16BE     UTF-16 Big Endian 编码
      */
     const ENCODING_UNDEFINED = 0x00;
     const ENCODING_ANSI = 0x01;
@@ -200,23 +205,20 @@ class WPDP {
     /**
      * 元数据标记常量
      *
-     * @global integer METADATA_FLAG_NONE        无任何标记
-     * @global integer METADATA_FLAG_RESERVED    保留标记
-     * @global integer METADATA_FLAG_COMPRESSED  条目内容已压缩, to be noticed
+     * @global integer METADATA_FLAG_NONE       无任何标记
+     * @global integer METADATA_FLAG_RESERVED   保留标记
+     * @global integer METADATA_FLAG_COMPRESSED 条目内容已压缩, to be noticed
      */
     const METADATA_FLAG_NONE = 0x0000;
     const METADATA_FLAG_RESERVED = 0x0001;
     const METADATA_FLAG_COMPRESSED = 0x0010;
 
-    const ATTRIBUTE_FLAG_NONE = 0x00;
-    const ATTRIBUTE_FLAG_INDEXED = 0x01;
-
     /**
      * 压缩类型常量
      *
-     * @global integer COMPRESSION_NONE   不压缩
-     * @global integer COMPRESSION_GZIP   Gzip
-     * @global integer COMPRESSION_BZIP2  Bzip2
+     * @global integer COMPRESSION_NONE     不压缩
+     * @global integer COMPRESSION_GZIP     Gzip
+     * @global integer COMPRESSION_BZIP2    Bzip2
      */
     const COMPRESSION_NONE = 0x00;
     const COMPRESSION_GZIP = 0x01;
@@ -225,20 +227,35 @@ class WPDP {
     /**
      * 校验类型常量
      *
-     * @global integer CHECKSUM_NONE   不校验
-     * @global integer CHECKSUM_CRC32  CRC32
-     * @global integer CHECKSUM_MD5    MD5
-     * @global integer CHECKSUM_SHA1   SHA1
+     * @global integer CHECKSUM_NONE    不校验
+     * @global integer CHECKSUM_CRC32   CRC32
+     * @global integer CHECKSUM_MD5     MD5
+     * @global integer CHECKSUM_SHA1    SHA1
      */
     const CHECKSUM_NONE = 0x00;
     const CHECKSUM_CRC32 = 0x01;
     const CHECKSUM_MD5 = 0x02;
     const CHECKSUM_SHA1 = 0x03;
 
+    /**
+     * 属性标记常量
+     *
+     * @global integer ATTRIBUTE_FLAG_NONE      无任何标记
+     * @global integer ATTRIBUTE_FLAG_INDEXED   索引标记
+     */
+    const ATTRIBUTE_FLAG_NONE = 0x00;
+    const ATTRIBUTE_FLAG_INDEXED = 0x01;
+
     // }}}
 
     // {{{ 用于数据堆操作的常量
 
+    /**
+     * 打开模式常量
+     *
+     * @global integer MODE_READONLY    只读方式
+     * @global integer MODE_READWRITE   读写方式
+     */
     const MODE_READONLY = 1;
     const MODE_READWRITE = 2;
 
@@ -813,6 +830,7 @@ class WPDP {
         $src->seek($offset, SEEK_SET);
 
         $didwrite = 0;
+
         while ($didwrite < $length) {
             if ($src->eof()) {
                 throw new WPDP_Exception();
