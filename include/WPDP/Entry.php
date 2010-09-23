@@ -140,7 +140,7 @@ class WPDP_Entries implements SeekableIterator, Countable, ArrayAccess {
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
  * @link       http://www.wudilabs.org/
  */
-class WPDP_Entry {
+class WPDP_Entry implements ArrayAccess {
     // {{{ properties
 
     /**
@@ -161,6 +161,8 @@ class WPDP_Entry {
      */
     private $_metadata = null;
 
+    private $_attributes = null;
+
     // }}}
 
     // {{{ constructor
@@ -179,6 +181,8 @@ class WPDP_Entry {
 
         $this->_contents = $contents;
         $this->_metadata = $metadata;
+
+        $this->_attributes = WPDP_Entry_Attributes::createFromMetadata($this->_metadata);
     }
 
     // }}}
@@ -220,9 +224,7 @@ class WPDP_Entry {
      * @return array 条目的属性
      */
     public function attributes() {
-        $attributes = WPDP_Entry_Attributes::createFromMetadata($this->_metadata);
-
-        return $attributes;
+        return $this->_attributes;
     }
 
     // }}}
@@ -275,6 +277,28 @@ class WPDP_Entry {
     }
 
     // }}}
+
+    // ArrayAccess
+
+    public function offsetExists($name) {
+        assert('is_string($name)');
+
+        return $this->_attributes->offsetExists($name);
+    }
+
+    public function offsetGet($name) {
+        assert('is_string($name)');
+
+        return $this->_attributes->offsetGet($name);
+    }
+
+    public function offsetSet($name, $value) {
+        throw new BadMethodCallException();
+    }
+
+    public function offsetUnset($name) {
+        throw new BadMethodCallException();
+    }
 }
 
 class WPDP_Entry_Information {
