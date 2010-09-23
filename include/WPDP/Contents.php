@@ -1,6 +1,4 @@
 <?php
-/* vim: set expandtab tabstop=4 shiftwidth=4 softtabstop=4: */
-
 /**
  * PHP implementation of Wudi Personal Data Pile (WPDP) format.
  *
@@ -132,6 +130,26 @@ class WPDP_Contents extends WPDP_Common {
 
 #endif
 
+#ifdef VERSION_WRITABLE
+
+    // {{{ flush()
+
+    /**
+     * 将缓冲内容写入文件
+     *
+     * @access public
+     */
+    public function flush() {
+        $this->_seek(0, SEEK_END, self::ABSOLUTE);
+        $length = $this->_tell(self::RELATIVE);
+        $this->_header['lenContents'] = $length;
+        $this->_writeHeader();
+    }
+
+    // }}}
+
+#endif
+
     public function _getOffsetsAndSizes(WPDP_Entry_Args $args) {
         assert('is_a($args, \'WPDP_Entry_Args\')');
 
@@ -246,10 +264,6 @@ class WPDP_Contents extends WPDP_Common {
      *
      * @param integer $length   内容长度
      * @param object  $args     WPDP_Entry_Args 对象
-     *
-     * @throws WPDP_InvalidArgumentException
-     * @throws WPDP_InvalidAttributeNameException
-     * @throws WPDP_InvalidAttributeValueException
      */
     public function begin($length, &$args) {
         assert('is_int($length)');
@@ -324,8 +338,6 @@ class WPDP_Contents extends WPDP_Common {
      * @access public
      *
      * @param object $args  WPDP_Entry_Args 对象
-     *
-     * @return array 参数
      */
     public function commit(WPDP_Entry_Args $args) {
         assert('is_a($args, \'WPDP_Entry_Args\')');

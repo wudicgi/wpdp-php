@@ -1,6 +1,4 @@
 <?php
-/* vim: set expandtab tabstop=4 shiftwidth=4 softtabstop=4: */
-
 /**
  * PHP implementation of Wudi Personal Data Pile (WPDP) format.
  *
@@ -71,7 +69,7 @@ class WPDP_Indexes extends WPDP_Common {
      *
      * @var array
      */
-    private $_indexes;
+    private $_table;
 
     /**
      * 结点缓存
@@ -116,7 +114,7 @@ class WPDP_Indexes extends WPDP_Common {
      *
      * @var array
      */
-    private $_in_operation = false;
+    private $_node_in_protection = false;
 
     /**
      * 当前文件结尾处的偏移量
@@ -144,7 +142,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         parent::__construct(WPDP::SECTION_TYPE_INDEXES, $stream, $mode);
 
-        $this->_readIndexes();
+        $this->_readTable();
 
         $this->_seek(0, SEEK_END, self::ABSOLUTE); // to be noticed
         $this->_offset_end = $this->_tell(self::RELATIVE);
@@ -171,13 +169,13 @@ class WPDP_Indexes extends WPDP_Common {
     public static function create(WPIO_Stream $stream) {
         parent::create(WPDP::FILE_TYPE_INDEXES, WPDP::SECTION_TYPE_INDEXES, $stream);
 
-        $indexes = WPDP_Struct::create('indexes');
-        $data_indexes = WPDP_Struct::packIndexes($indexes);
-        $stream->write($data_indexes);
+        $table = WPDP_Struct::create('index_table');
+        $data_table = WPDP_Struct::packIndexTable($table);
+        $stream->write($data_table);
 
         $stream->seek(WPDP::HEADER_BLOCK_SIZE, SEEK_SET);
         $section = WPDP_Struct::unpackSection($stream);
-        $section['ofsSpecial'] = WPDP::SECTION_BLOCK_SIZE;
+        $section['ofsTable'] = WPDP::SECTION_BLOCK_SIZE;
 
         $data_section = WPDP_Struct::packSection($section);
         $stream->seek(WPDP::HEADER_BLOCK_SIZE, SEEK_SET);
@@ -190,46 +188,48 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-    // {{{ _readIndexes()
+    // {{{ _readTable()
 
     /**
      * 读取索引表
      *
      * @access private
      */
-    private function _readIndexes() {
-        $this->_seek($this->_section['ofsSpecial'], SEEK_SET, self::RELATIVE);
-        $this->_indexes = WPDP_Struct::unpackIndexes($this->_stream);
+    private function _readTable() {
+        $this->_seek($this->_section['ofsTable'], SEEK_SET, self::RELATIVE);
+        $this->_table = WPDP_Struct::unpackIndexTable($this->_stream);
     }
 
     // }}}
 
 #ifdef VERSION_WRITABLE
 
-    // {{{ _writeIndexes()
+    // {{{ _writeTable()
 
     /**
      * 写入索引表
      *
      * @access private
      */
-    private function _writeIndexes() {
-        $offset = $this->_section['ofsSpecial'];
-        $length_original = $this->_indexes['lenBlock'];
+    private function _writeTable() {
+        $offset = $this->_section['ofsTable'];
+        $length_original = $this->_table['lenBlock'];
 
-        $data_indexes = WPDP_Struct::packIndexes($this->_indexes);
-        $length_current = $this->_indexes['lenBlock'];
+        $data_table = WPDP_Struct::packIndexTable($this->_table);
+        $length_current = $this->_table['lenBlock'];
 
         if ($length_current > $length_original) {
             $this->_seek(0, SEEK_END, self::ABSOLUTE);
             $offset_new = $this->_tell(self::RELATIVE);
-            $this->_write($data_indexes);
+            $this->_write($data_table);
 
-            $this->_section['ofsSpecial'] = $offset_new;
+            $this->_offset_end += $this->_table['lenBlock'];
+
+            $this->_section['ofsTable'] = $offset_new;
             $this->_writeSection();
         } else {
             $this->_seek($offset, SEEK_SET, self::RELATIVE);
-            $this->_write($data_indexes);
+            $this->_write($data_table);
         }
     }
 
@@ -260,6 +260,12 @@ class WPDP_Indexes extends WPDP_Common {
         $this->_node_caches = array();
         $this->_node_parents = array();
         $this->_node_accesses = array();
+
+        // to be noticed
+        $this->_seek(0, SEEK_END, self::ABSOLUTE);
+        $length = $this->_tell(self::RELATIVE);
+        $this->_header['lenIndexes'] = $length;
+        $this->_writeHeader();
     }
 
     // }}}
@@ -284,15 +290,21 @@ class WPDP_Indexes extends WPDP_Common {
         assert('is_string($attr_name)');
         assert('is_string($attr_value)');
 
-        if (!array_key_exists($attr_name, $this->_indexes['indexes'])) {
+        /* Possible traces:
+         * EXTERNAL -> find()
+         *
+         * So this method NEED to protect the nodes in cache
+         */
+
+        if (!array_key_exists($attr_name, $this->_table['indexes'])) {
             throw new WPDP_InvalidAttributeNameException("Attribute $attr_name has no index");
         }
 
-        $this->_beginNodeOperationSession();
+        $this->_beginNodeProtection();
 
         $key = $attr_value;
 
-        $offset = $this->_indexes['indexes'][$attr_name]['ofsRoot'];
+        $offset = $this->_table['indexes'][$attr_name]['ofsRoot'];
         trace(__METHOD__, "offset = $offset");
 
         $node =& $this->_getNode($offset, null);
@@ -335,7 +347,7 @@ class WPDP_Indexes extends WPDP_Common {
             }
         }
 
-        $this->_endNodeOperationSession();
+        $this->_endNodeProtection();
 
         return $offsets;
     }
@@ -358,31 +370,40 @@ class WPDP_Indexes extends WPDP_Common {
     public function index(WPDP_Entry_Args $args) {
         assert('is_a($args, \'WPDP_Entry_Args\')');
 
+        /* Possible traces:
+         * EXTERNAL -> index()
+         *
+         * So this method NEED to protect the nodes in cache
+         */
+
+        $this->_beginNodeProtection();
+
         // 处理该条目属性中需索引的项目
         foreach ($args->attributes as $attr_name => $attr_value) {
             if (!$args->attributes->isIndexed($attr_name)) {
                 continue;
             }
 
-            if (!array_key_exists($attr_name, $this->_indexes['indexes'])) {
+            if (!array_key_exists($attr_name, $this->_table['indexes'])) {
                 $node_root =& $this->_createNode(true, null);
                 $this->flush();
 
 //                echo "$attr_name => " . $node_root['_ofsSelf'] . "\n";
 
-                $this->_indexes['indexes'][$attr_name] = array(
+                $this->_table['indexes'][$attr_name] = array(
                     'name' => $attr_name,
                     'ofsRoot' => $node_root['_ofsSelf']
                 );
-                $this->_writeIndexes();
-                $this->_offset_end += $this->_indexes['lenBlock'];
+                $this->_writeTable();
             }
 
-            $offset = $this->_indexes['indexes'][$attr_name]['ofsRoot'];
+            $offset = $this->_table['indexes'][$attr_name]['ofsRoot'];
             trace(__METHOD__, "offset = $offset");
 
             $this->_treeInsert($offset, $attr_value, $args->metadataOffset);
         }
+
+        $this->_endNodeProtection();
 
         return true;
     }
@@ -412,12 +433,10 @@ class WPDP_Indexes extends WPDP_Common {
         assert('is_int($value)');
 
         /* Possible traces:
-         * EXTERNAL -> index() -> _treeInsert()
+         * ... -> index() [PROTECTED] -> _treeInsert()
          *
-         * So this method NEED to protect the nodes in cache
+         * So this method needn't and shouldn't to protect the nodes in cache
          */
-
-        $this->_beginNodeOperationSession();
 
         // 当前结点的偏移量
         $offset = $root_offset;
@@ -447,8 +466,6 @@ class WPDP_Indexes extends WPDP_Common {
         if ($this->_isOverflowed($node)) {
             $this->_splitNode($node);
         }
-
-        $this->_endNodeOperationSession();
 
         return true;
     }
@@ -541,7 +558,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         // to be noticed
         $flag_changed = false;
-        foreach ($this->_indexes['indexes'] as &$index) {
+        foreach ($this->_table['indexes'] as &$index) {
             if ($index['ofsRoot'] == $node['_ofsSelf']) {
                 $index['ofsRoot'] = $node_parent['_ofsSelf'];
                 $flag_changed = true;
@@ -551,7 +568,7 @@ class WPDP_Indexes extends WPDP_Common {
         }
         unset($index);
         assert('$flag_changed');
-        $this->_writeIndexes();
+        $this->_writeTable();
 
         return $node_parent;
     }
@@ -738,29 +755,6 @@ class WPDP_Indexes extends WPDP_Common {
 
 #ifdef VERSION_WRITABLE
 
-    // {{{ _isOverflowed()
-
-    /**
-     * 判断指定结点中的元素是否已溢出
-     *
-     * @access private
-     *
-     * @param array $node  结点
-     *
-     * @return bool 若已溢出，返回 true，否则返回 false
-     */
-    private function _isOverflowed(array &$node) {
-        assert('is_array($node)');
-
-        return ($node['_size'] > WPDP::NODE_DATA_SIZE);
-    }
-
-    // }}}
-
-#endif
-
-#ifdef VERSION_WRITABLE
-
     // {{{ _appendElement()
 
     /**
@@ -864,6 +858,29 @@ class WPDP_Indexes extends WPDP_Common {
 
 #ifdef VERSION_WRITABLE
 
+    // {{{ _isOverflowed()
+
+    /**
+     * 判断指定结点中的元素是否已溢出
+     *
+     * @access private
+     *
+     * @param array $node  结点
+     *
+     * @return bool 若已溢出，返回 true，否则返回 false
+     */
+    private function _isOverflowed(array &$node) {
+        assert('is_array($node)');
+
+        return ($node['_size'] > WPDP::NODE_DATA_SIZE);
+    }
+
+    // }}}
+
+#endif
+
+#ifdef VERSION_WRITABLE
+
     // {{{ _computeNodeSize()
 
     /**
@@ -940,7 +957,7 @@ class WPDP_Indexes extends WPDP_Common {
 #ifdef VERSION_WRITABLE
             $this->_node_accesses[$offset] = time();
 #endif
-            if ($this->_in_operation) {
+            if ($this->_node_in_protection) {
                 $this->_node_locks[$offset] = true;
             }
             return $this->_node_caches[$offset];
@@ -964,7 +981,7 @@ class WPDP_Indexes extends WPDP_Common {
 #ifdef VERSION_WRITABLE
         $this->_node_accesses[$offset] = time();
 #endif
-        if ($this->_in_operation) {
+        if ($this->_node_in_protection) {
             $this->_node_locks[$offset] = true;
         }
 
@@ -1085,13 +1102,17 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-    private function _beginNodeOperationSession($offsets = array()) {
-        $this->_in_operation = true;
-        $this->_node_locks = array_flip($offsets);
+    private function _beginNodeProtection() {
+        assert('$this->_node_in_protection == false');
+
+        $this->_node_in_protection = true;
+        $this->_node_locks = array();
     }
 
-    private function _endNodeOperationSession() {
-        $this->_in_operation = false;
+    private function _endNodeProtection() {
+        assert('$this->_node_in_protection == true');
+
+        $this->_node_in_protection = false;
         $this->_node_locks = array();
     }
 
@@ -1185,7 +1206,8 @@ class WPDP_Indexes extends WPDP_Common {
             } else {
                 $probe -= $diff;
             }
-            $diff = (int)($diff / 2); // $diff 为正数，不必再加 floor()
+            // $diff 为正数，不必再加 floor()
+            $diff = (int)($diff / 2);
         }
 
         trace(__METHOD__, "probe = $probe (diff = $diff)");
@@ -1267,7 +1289,8 @@ class WPDP_Indexes extends WPDP_Common {
             } else {
                 $probe += $diff;
             }
-            $diff = (int)($diff / 2); // $diff 为正数，不必再加 floor()
+            // $diff 为正数，不必再加 floor()
+            $diff = (int)($diff / 2);
         }
 
         trace(__METHOD__, "probe = $probe (diff = $diff)");

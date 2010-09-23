@@ -3,10 +3,10 @@ require_once 'global.php';
 
 $compressions = array(
     WPDP::COMPRESSION_NONE,
-    /*
+/*
     WPDP::COMPRESSION_GZIP,
     WPDP::COMPRESSION_BZIP2
-    */
+*/
 );
 
 $checksums = array(
@@ -44,7 +44,7 @@ for ($j = 0; $j < 5; $j++) {
     $fields = array();
     $fields_index = array();
     for ($i = 0; $i < $count_fields; $i++) {
-        $name = random_string(3, 12);
+        $name = random_string(3, 8);
 
         if (!array_key_exists($name, $fields_all)) {
             $index = random_bool(2);
@@ -135,5 +135,8 @@ test_query($db);
 echo "\n";
 
 $db->close();
+
+@unlink('_test_lookup.5dp');
+WPDP_File::makeLookup('_test.5dp', '_test_lookup.5dp');
 
 ?>

@@ -1,6 +1,4 @@
 <?php
-/* vim: set expandtab tabstop=4 shiftwidth=4 softtabstop=4: */
-
 /**
  * PHP implementation of Wudi Personal Data Pile (WPDP) format.
  *
@@ -88,6 +86,8 @@ class WPDP_Metadata extends WPDP_Common {
 
 #endif
 
+#ifdef VERSION_WRITABLE
+
     // {{{ flush()
 
     /**
@@ -96,12 +96,15 @@ class WPDP_Metadata extends WPDP_Common {
      * @access public
      */
     public function flush() {
-#ifdef VERSION_WRITABLE
-        $this->_writeSection();
-#endif
+        $this->_seek(0, SEEK_END, self::ABSOLUTE);
+        $length = $this->_tell(self::RELATIVE);
+        $this->_header['lenMetadata'] = $length;
+        $this->_writeHeader();
     }
 
     // }}}
+
+#endif
 
     public function getMetadata($offset) {
         trace(__METHOD__, "offset = $offset");
@@ -132,7 +135,7 @@ class WPDP_Metadata extends WPDP_Common {
         assert('is_array($metadata)');
 
         $offset_next = $metadata['_offset'] + $metadata['lenBlock'];
-        if ($offset_next > $this->_section['ofsLast']) {
+        if ($offset_next >= $this->_header['lenMetadata']) {
             return false;
         }
 
@@ -162,12 +165,12 @@ class WPDP_Metadata extends WPDP_Common {
         // 写入该元数据
         $metadata_offset = $this->_writeMetadata($metadata);
 
+        $args->metadataOffset = $metadata_offset;
+
         if ($this->_section['ofsFirst'] == 0) {
             $this->_section['ofsFirst'] = $metadata_offset;
+            $this->_writeSection();
         }
-        $this->_section['ofsLast'] = $metadata_offset;
-
-        $args->metadataOffset = $metadata_offset;
     }
 
 #endif

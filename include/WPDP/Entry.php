@@ -1,6 +1,4 @@
 <?php
-/* vim: set expandtab tabstop=4 shiftwidth=4 softtabstop=4: */
-
 /**
  * PHP implementation of Wudi Personal Data Pile (WPDP) format.
  *
@@ -399,6 +397,10 @@ class WPDP_Entry_Attributes implements Iterator, Countable, ArrayAccess {
             }
 
             $index = in_array($name, $attribute_indexes);
+
+            if ($index && strlen($value) > 255) {
+                throw new WPDP_InvalidAttributeValueException("The value of indexed attribute $name cannot be more than 255 bytes");
+            }
 
             $attrs[$name] = array(
                 'name' => $name,

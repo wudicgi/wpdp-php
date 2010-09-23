@@ -1,6 +1,4 @@
 <?php
-/* vim: set expandtab tabstop=4 shiftwidth=4 softtabstop=4: */
-
 /**
  * PHP implementation of Wudi Personal Data Pile (WPDP) format.
  *
@@ -57,17 +55,19 @@ class WPDP {
     /**
      * 各类型结构的标识常量
      *
-     * @global integer HEADER_SIGNATURE     头信息的标识
-     * @global integer SECTION_SIGNATURE    区域信息的标识
-     * @global integer METADATA_SIGNATURE   元数据的标识
-     * @global integer INDEXES_SIGNATURE    索引表的标识
-     * @global integer NODE_SIGNATURE       索引结点的标识
+     * @global integer HEADER_SIGNATURE         头信息的标识
+     * @global integer SECTION_SIGNATURE        区域信息的标识
+     * @global integer METADATA_SIGNATURE       元数据的标识
+     * @global integer INDEX_TABLE_SIGNATURE    索引表的标识
+     * @global integer NODE_SIGNATURE           索引结点的标识
      */
     const HEADER_SIGNATURE = 0x50445057; // WPDP
     const SECTION_SIGNATURE = 0x54434553; // SECT
     const METADATA_SIGNATURE = 0x4154454D; // META
-    const INDEXES_SIGNATURE = 0x58444E49; // INDX
+    const INDEX_TABLE_SIGNATURE = 0x54584449; // IDXT
     const NODE_SIGNATURE = 0x45444F4E; // NODE
+
+    const ATTRIBUTE_SIGNATURE = 0xD5; // 0x61 + 0x74
 
     /**
      * 区域类型
@@ -78,6 +78,7 @@ class WPDP {
      * @global integer SECTION_TYPE_METADATA  元数据
      * @global integer SECTION_TYPE_INDEXES   索引
      */
+    const SECTION_TYPE_UNDEFINED = 0x00;
     const SECTION_TYPE_CONTENTS = 0x01;
     const SECTION_TYPE_METADATA = 0x02;
     const SECTION_TYPE_INDEXES = 0x04;
@@ -98,16 +99,16 @@ class WPDP {
      * => node_block_size >= 524 + 32 = 556
      * => node_block_size >= 1024 (final min value)
      *
-     * @global integer HEADER_BLOCK_SIZE    头信息的块大小
-     * @global integer SECTION_BLOCK_SIZE   区域信息的块大小
-     * @global integer METADATA_BLOCK_SIZE  元数据的块大小
-     * @global integer INDEXES_BLOCK_SIZE   索引表的块大小
-     * @global integer NODE_BLOCK_SIZE      索引结点的块大小
+     * @global integer HEADER_BLOCK_SIZE        头信息的块大小
+     * @global integer SECTION_BLOCK_SIZE       区域信息的块大小
+     * @global integer METADATA_BLOCK_SIZE      元数据的块大小
+     * @global integer INDEX_TABLE_BLOCK_SIZE   索引表的块大小
+     * @global integer NODE_BLOCK_SIZE          索引结点的块大小
      */
     const HEADER_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
     const SECTION_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
     const METADATA_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
-    const INDEXES_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
+    const INDEX_TABLE_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
     const NODE_BLOCK_SIZE = 4096; // BASE_BLOCK_SIZE * 8
 
     /**
@@ -206,6 +207,9 @@ class WPDP {
     const METADATA_FLAG_NONE = 0x0000;
     const METADATA_FLAG_RESERVED = 0x0001;
     const METADATA_FLAG_COMPRESSED = 0x0010;
+
+    const ATTRIBUTE_FLAG_NONE = 0x00;
+    const ATTRIBUTE_FLAG_INDEXED = 0x01;
 
     /**
      * 压缩类型常量
@@ -433,7 +437,12 @@ class WPDP {
         assert('is_a($stream_i, \'WPIO_Stream\')');
 
         // 读取内容文件的头信息
-        $header = WPDP_Struct::unpackHeader($stream_c);
+        $header = self::_readHeaderWithCheck($stream_c, self::FILE_TYPE_CONTENTS, 'ofsContents');
+        // 读取元数据文件的头信息
+        $headerm = self::_readHeaderWithCheck($stream_m, self::FILE_TYPE_METADATA, 'ofsMetadata');
+        // 读取索引文件的头信息
+        $headeri = self::_readHeaderWithCheck($stream_i, self::FILE_TYPE_INDEXES, 'ofsIndexes');
+
         // 填充内容部分长度到基本块大小的整数倍
         $stream_c->seek(0, SEEK_END);
         $padding = self::BASE_BLOCK_SIZE - ($stream_c->tell() % self::BASE_BLOCK_SIZE);
@@ -441,19 +450,13 @@ class WPDP {
 
         // 追加条目元数据
         $header['ofsMetadata'] = $stream_c->tell();
-        $headerm = WPDP_Struct::unpackHeader($stream_m);
-        $stream_m->seek($headerm['ofsMetadata'], SEEK_SET);
-        while (!$stream_m->eof()) {
-            $stream_c->write($stream_m->read(8192));
-        }
+        $header['lenMetadata'] = $headerm['lenMetadata'];
+        self::_streamCopy($stream_c, $stream_m, $headerm['ofsMetadata'], $headerm['lenMetadata']);
 
         // 追加条目索引
         $header['ofsIndexes'] = $stream_c->tell();
-        $headeri = WPDP_Struct::unpackHeader($stream_i);
-        $stream_i->seek($headeri['ofsIndexes'], SEEK_SET);
-        while (!$stream_i->eof()) {
-            $stream_c->write($stream_i->read(8192));
-        }
+        $header['lenIndexes'] = $headeri['lenIndexes'];
+        self::_streamCopy($stream_c, $stream_i, $headeri['ofsIndexes'], $headeri['lenIndexes']);
 
         // 更改文件类型为复合型
         $header['type'] = self::FILE_TYPE_COMPOUND;
@@ -469,6 +472,45 @@ class WPDP {
     // }}}
 
 #endif
+
+    public static function makeLookup(WPIO_Stream $stream_m, WPIO_Stream $stream_i, WPIO_Stream $stream_out) {
+        assert('is_a($stream_m, \'WPIO_Stream\')');
+        assert('is_a($stream_i, \'WPIO_Stream\')');
+        assert('is_a($stream_out, \'WPIO_Stream\')');
+
+        // 读取元数据文件的头信息
+        $headerm = self::_readHeaderWithCheck($stream_m, self::FILE_TYPE_METADATA, 'ofsMetadata');
+        // 读取索引文件的头信息
+        $headeri = self::_readHeaderWithCheck($stream_i, self::FILE_TYPE_INDEXES, 'ofsIndexes');
+
+        // 复制一份元数据文件的头信息暂时作为查找文件的头信息
+        $header = $headerm;
+        $header['type'] = self::FILE_TYPE_UNDEFINED;
+        // 将头信息写入到输出文件中
+        $stream_out->seek(0, SEEK_SET);
+        $data_header = WPDP_Struct::packHeader($header);
+        $stream_out->write($data_header);
+
+        // 写入条目元数据
+        $header['ofsMetadata'] = $stream_out->tell();
+        $header['lenMetadata'] = $headerm['lenMetadata'];
+        self::_streamCopy($stream_out, $stream_m, $headerm['ofsMetadata'], $headerm['lenMetadata']);
+
+        // 写入条目索引
+        $header['ofsIndexes'] = $stream_out->tell();
+        $header['lenIndexes'] = $headeri['lenIndexes'];
+        self::_streamCopy($stream_out, $stream_i, $headeri['ofsIndexes'], $headeri['lenIndexes']);
+
+        // 更改文件类型为查找型
+        $header['type'] = self::FILE_TYPE_LOOKUP;
+
+        // 更新头信息
+        $stream_out->seek(0, SEEK_SET);
+        $data_header = WPDP_Struct::packHeader($header);
+        $stream_out->write($data_header);
+
+        return true;
+    }
 
     // {{{ flush()
 
@@ -723,6 +765,37 @@ class WPDP {
     // }}}
 
 #endif
+
+    private static function _readHeaderWithCheck(WPIO_Stream $stream, $file_type, $offset_name) {
+        $stream->seek(0, SEEK_SET);
+        $header = WPDP_Struct::unpackHeader($stream);
+
+        if ($header['type'] != $file_type && $header['type'] != self::FILE_TYPE_COMPOUND) {
+            throw new WPDP_Exception();
+        }
+
+        if ($header[$offset_name] == 0) {
+            throw new WPDP_Exception();
+        }
+
+        return $header;
+    }
+
+    private static function _streamCopy(WPIO_Stream $dst, WPIO_Stream $src, $offset, $length) {
+        $src->seek($offset, SEEK_SET);
+
+        $didwrite = 0;
+        while ($didwrite < $length) {
+            if ($src->eof()) {
+                throw new WPDP_Exception();
+            }
+
+            $buffer = $src->read(min(8192, $length - $didwrite));
+            $dst->write($buffer);
+
+            $didwrite += strlen($buffer);
+        }
+    }
 }
 
 class WPDP_File extends WPDP {
@@ -890,6 +963,28 @@ class WPDP_File extends WPDP {
     // }}}
 
 #endif
+
+    public static function makeLookup($filename, $filename_out) {
+        assert('is_string($filename)');
+        assert('is_string($filename_out)');
+
+        // 检查各文件的可读写性
+        try {
+            self::_checkReadable($filename);
+
+            self::_checkCreatable($filename_out);
+        } catch (WPDP_FileOpenException $e) {
+            throw $e;
+        }
+
+        $stream_c = new File_Stream($filename, 'rb');
+        $stream_out = new File_Stream($filename_out, 'w+b'); // wb
+
+        parent::makeLookup($stream_c, $stream_c, $stream_out);
+
+        $stream_c->close();
+        $stream_out->close();
+    }
 
     // {{{ _getFilenames()
 

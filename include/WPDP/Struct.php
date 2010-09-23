@@ -1,6 +1,4 @@
 <?php
-/* vim: set expandtab tabstop=4 shiftwidth=4 softtabstop=4: */
-
 /**
  * PHP implementation of Wudi Personal Data Pile (WPDP) format.
  *
@@ -52,12 +50,12 @@ class WPDP_Struct {
                 'encoding' => 'C', // 文本编码
                 '__reserved_char' => 'C', // 保留
                 'ofsContents' => 'V', // 条目的偏移量
+                'lenContents' => 'V',
                 'ofsMetadata' => 'V', // 条目的偏移量
+                'lenMetadata' => 'V',
                 'ofsIndexes' => 'V', // 索引的偏移量
-                '__reserved_ofs_0' => 'V',
-                '__reserved_ofs_1' => 'V',
-                '__reserved_ofs_2' => 'V',
-                '__reserved' => 'a476' // 填充块到 512 bytes
+                'lenIndexes' => 'V',
+                '__padding' => 'a476' // 填充块到 512 bytes
             ),
             'default' => array(
                 'signature' => WPDP::HEADER_SIGNATURE,
@@ -68,12 +66,12 @@ class WPDP_Struct {
                 'encoding' => WPDP::ENCODING_UTF8,
                 '__reserved_char' => 0,
                 'ofsContents' => 0,
+                'lenContents' => 0,
                 'ofsMetadata' => 0,
+                'lenMetadata' => 0,
                 'ofsIndexes' => 0,
-                '__reserved_ofs_0' => 0,
-                '__reserved_ofs_1' => 0,
-                '__reserved_ofs_2' => 0,
-                '__reserved' => '',
+                'lenIndexes' => 0,
+                '__padding' => '',
             )
         ),
         'section' => array(
@@ -81,19 +79,19 @@ class WPDP_Struct {
                 'signature' => 'V', // 块标识
                 'type' => 'C', // 区域类型
                 '__reserved_char' => 'C', // 保留
+                'ofsTable' => 'V',
                 'ofsFirst' => 'V',
                 'ofsLast' => 'V',
-                'ofsSpecial' => 'V',
-                '__reserved' => 'a494' // 填充块到 512 bytes
+                '__padding' => 'a494' // 填充块到 512 bytes
             ),
             'default' => array(
                 'signature' => WPDP::SECTION_SIGNATURE,
-                'type' => 0,
+                'type' => WPDP::SECTION_TYPE_UNDEFINED,
                 '__reserved_char' => 0,
+                'ofsTable' => 0,
                 'ofsFirst' => 0,
                 'ofsLast' => 0,
-                'ofsSpecial' => 0,
-                '__reserved' => ''
+                '__padding' => ''
             )
         ),
         'metadata' => array(
@@ -108,10 +106,10 @@ class WPDP_Struct {
                 'lenCompressed' => 'V', // 内容压缩后长度
                 'sizeChunk' => 'V', // 数据块大小
                 'numChunk' => 'V', // 数据块数量
+                'ofsContents' => 'V', // 第一个分块的偏移量
                 'ofsOffsetTable' => 'V', // 分块偏移量表的偏移量
                 'ofsChecksumTable' => 'V', // 分块校验值表的偏移量
-                'ofsContents' => 'V', // 第一个分块的偏移量
-                '__reserved' => 'a24' // 填充块头部到 64 bytes
+                '__padding' => 'a56' // 填充块头部到 96 bytes
             ),
             'default' => array(
                 'signature' => WPDP::METADATA_SIGNATURE,
@@ -124,24 +122,24 @@ class WPDP_Struct {
                 'lenCompressed' => 0,
                 'sizeChunk' => 0,
                 'numChunk' => 0,
+                'ofsContents' => 0,
                 'ofsOffsetTable' => 0,
                 'ofsChecksumTable' => 0,
-                'ofsContents' => 0,
-                '__reserved' => ''
+                '__padding' => ''
             )
         ),
-        'indexes' => array(
+        'index_table' => array(
             'blocks' => array(
                 'signature' => 'V', // 块标识
                 'lenBlock' => 'v', // 块长度
                 'lenActual' => 'v', // 实际内容长度
-                '__reserved' => 'a24' // 填充块头部到 32 bytes
+                '__padding' => 'a24' // 填充块头部到 32 bytes
             ),
             'default' => array(
-                'signature' => WPDP::INDEXES_SIGNATURE,
+                'signature' => WPDP::INDEX_TABLE_SIGNATURE,
                 'lenBlock' => 0,
                 'lenActual' => 0,
-                '__reserved' => ''
+                '__padding' => ''
             )
         ),
         'node' => array(
@@ -149,11 +147,11 @@ class WPDP_Struct {
                 'signature' => 'V', // 块标识
                 'isLeaf' => 'C', // 是否为叶子结点
                 '__reserved_char' => 'C',
-                'numElement' => 'V', // 元素数量
+                'numElement' => 'v', // 元素数量
                 'ofsExtra' => 'V', // 补充偏移量 (局部)
                 // 对于叶子节点，ofsExtra 为下一个相邻叶子节点的偏移量
                 // 对于普通结点，ofsExtra 为比第一个键还要小的键所在结点的偏移量
-                '__reserved' => 'a18' // 填充块到 32 bytes
+                '__padding' => 'a20' // 填充块头部到 32 bytes
                 // to be noticed, related to NODE_DATA_SIZE
             ),
             'default' => array(
@@ -162,7 +160,7 @@ class WPDP_Struct {
                 '__reserved_char' => 0,
                 'numElement' => 0,
                 'ofsExtra' => 0,
-                '__reserved' => ''
+                '__padding' => ''
             )
         )
     );
@@ -172,12 +170,13 @@ class WPDP_Struct {
             $parts = array();
             $size = 0;
             foreach ($struct['blocks'] as $name => $code) {
-                $parts[] = $code.$name;
+                assert('$code == \'V\' || $code == \'v\' || $code{0} == \'a\' || $code{0} == \'C\'');
+                $parts[] = $code . $name;
                 if ($code == 'V') {
                     $size += 4;
                 } elseif ($code == 'v') {
                     $size += 2;
-                } elseif (($code[0] == 'a') || ($code[0] == 'C')) {
+                } elseif ($code{0} == 'a' || $code{0} == 'C') {
                     $size += (strlen($code) == 1) ? 1 : (int)substr($code, 1);
                 }
             }
@@ -202,7 +201,7 @@ class WPDP_Struct {
             case 'metadata':
                 $object['attributes'] = array();
                 break;
-            case 'indexes':
+            case 'index_table':
                 $object['indexes'] = array();
                 break;
             case 'node':
@@ -306,33 +305,33 @@ class WPDP_Struct {
 
 #ifdef VERSION_WRITABLE
 
-    public static function packIndexes(array &$object) {
+    public static function packIndexTable(array &$object) {
         assert('is_array($object)');
 
-        $blob = self::_packIndexesBlob($object);
+        $blob = self::_packIndexTableBlob($object);
 
-        $data = self::_packVariant('indexes', $object, $blob);
+        $data = self::_packVariant('index_table', $object, $blob);
 
         return $data;
     }
 
 #endif
 
-    public static function unpackIndexes(WPIO_Stream $stream, $noblob = false) {
+    public static function unpackIndexTable(WPIO_Stream $stream, $noblob = false) {
         assert('is_a($stream, \'WPIO_Stream\')');
 
-        $object = self::_unpackVariant('indexes', $stream, $noblob);
+        $object = self::_unpackVariant('index_table', $stream, $noblob);
 
-        if ($object['signature'] != WPDP::INDEXES_SIGNATURE) {
+        if ($object['signature'] != WPDP::INDEX_TABLE_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
-                $object['signature'], WPDP::INDEXES_SIGNATURE));
+                $object['signature'], WPDP::INDEX_TABLE_SIGNATURE));
         }
 
         if ($noblob) {
             return $object;
         }
 
-        $object['indexes'] = self::_unpackIndexesBlob($object['_blob']);
+        $object['indexes'] = self::_unpackIndexTableBlob($object['_blob']);
         unset($object['_blob']);
 
         return $object;
@@ -516,7 +515,13 @@ class WPDP_Struct {
         $blob = '';
 
         foreach ($object['attributes'] as $attr) {
-            $blob .= pack('C', ($attr['index'] ? 0x01 : 0x00));
+            $flag = WPDP::ATTRIBUTE_FLAG_NONE;
+            if ($attr['index']) {
+                $flag |= WPDP::ATTRIBUTE_FLAG_INDEXED;
+            }
+
+            $blob .= pack('C', WPDP::ATTRIBUTE_SIGNATURE);
+            $blob .= pack('C', $flag);
             $blob .= pack('C', strlen($attr['name']));
             $blob .= $attr['name'];
             $blob .= pack('v', strlen($attr['value']));
@@ -547,9 +552,15 @@ class WPDP_Struct {
 
         $i = 0;
         while ($i < $length) {
-            $temp = unpack('Cindex', $blob{$i});
-            $i += 1;
-            $index = ($temp['index'] == 1);
+            $temp = unpack('Csignature/Cflag', substr($blob, $i, 2));
+            $i += 2;
+
+            if ($temp['signature'] != WPDP::ATTRIBUTE_SIGNATURE) {
+                throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
+                    $temp['signature'], WPDP::ATTRIBUTE_SIGNATURE));
+            }
+
+            $index = (bool)($temp['flag'] & WPDP::ATTRIBUTE_FLAG_INDEXED);
 
             $temp = unpack('Clen', $blob{$i});
             $i += 1;
@@ -573,7 +584,7 @@ class WPDP_Struct {
 
 #ifdef VERSION_WRITABLE
 
-    private static function _packIndexesBlob(array &$object) {
+    private static function _packIndexTableBlob(array &$object) {
         assert('is_array($object)');
 
         $blob = '';
@@ -589,7 +600,7 @@ class WPDP_Struct {
 
 #endif
 
-    private static function _unpackIndexesBlob($blob) {
+    private static function _unpackIndexTableBlob($blob) {
         assert('is_string($blob)');
 
         $length = strlen($blob);
@@ -623,8 +634,8 @@ class WPDP_Struct {
             case 'metadata':
                 $block_size = WPDP::METADATA_BLOCK_SIZE;
                 break;
-            case 'indexes':
-                $block_size = WPDP::INDEXES_BLOCK_SIZE;
+            case 'index_table':
+                $block_size = WPDP::INDEX_TABLE_BLOCK_SIZE;
                 break;
             // DEBUG: BEGIN ASSERT
             default:
