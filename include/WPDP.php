@@ -564,6 +564,14 @@ class WPDP {
         assert('is_string($attr_name)');
         assert('is_string($attr_value)');
 
+        if (!is_string($attr_name)) {
+            $attr_name = (string)$attr_name;
+        }
+
+        if (!is_string($attr_value)) {
+            $attr_value = (string)$attr_value;
+        }
+
         try {
             $offsets = $this->_indexes->find($attr_name, $attr_value);
         } catch (WPDP_InvalidAttributeNameException $e) {
@@ -584,13 +592,19 @@ class WPDP {
      *
      * @access public
      *
-     * @param integer $method   压缩类型
+     * @param integer $type 压缩类型
      */
-    public function setCompression($method) {
-        assert('is_int($method)');
-        assert('in_array($method, array(self::COMPRESSION_NONE, self::COMPRESSION_GZIP, self::COMPRESSION_BZIP2))');
+    public function setCompression($type) {
+        assert('is_int($type)');
+        assert('in_array($type, array(self::COMPRESSION_NONE, self::COMPRESSION_GZIP, self::COMPRESSION_BZIP2))');
 
-        $this->_compression = $method;
+        if ($type != self::COMPRESSION_NONE &&
+            $type != self::COMPRESSION_GZIP &&
+            $type != self::COMPRESSION_BZIP2) {
+            throw new WPDP_InvalidArgumentException("Invalid compression type");
+        }
+
+        $this->_compression = $type;
     }
 
     // }}}
@@ -602,13 +616,20 @@ class WPDP {
      *
      * @access public
      *
-     * @param integer $method   校验类型
+     * @param integer $type 校验类型
      */
-    public function setChecksum($method = self::CHECKSUM_NONE) {
-        assert('is_int($method)');
-        assert('in_array($method, array(self::CHECKSUM_NONE, self::CHECKSUM_CRC32, self::CHECKSUM_MD5, self::CHECKSUM_SHA1))');
+    public function setChecksum($type = self::CHECKSUM_NONE) {
+        assert('is_int($type)');
+        assert('in_array($type, array(self::CHECKSUM_NONE, self::CHECKSUM_CRC32, self::CHECKSUM_MD5, self::CHECKSUM_SHA1))');
 
-        $this->_checksum = $method;
+        if ($type != self::CHECKSUM_NONE &&
+            $type != self::CHECKSUM_CRC32 &&
+            $type != self::CHECKSUM_MD5 &&
+            $type != self::CHECKSUM_SHA1) {
+            throw new WPDP_InvalidArgumentException("Invalid checksum type");
+        }
+
+        $this->_checksum = $type;
     }
 
     // }}}
@@ -624,6 +645,13 @@ class WPDP {
      */
     public function setIndexedAttributeNames(array $names) {
         assert('is_array($names)');
+
+        foreach ($names as &$name) {
+            if (!is_string($name)) {
+                $name = (string)$name;
+            }
+        }
+        unset($name);
 
         $this->_attribute_indexes = $names;
     }

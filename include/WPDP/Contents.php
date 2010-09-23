@@ -434,14 +434,14 @@ class WPDP_Contents extends WPDP_Common {
 
 #endif
 
-    private static function _checksum(&$data, $method) {
+    private static function _checksum(&$data, $type) {
         assert('is_string($data)');
-        assert('is_int($method)');
-        assert('in_array($method, array(WPDP::CHECKSUM_NONE, WPDP::CHECKSUM_CRC32, WPDP::CHECKSUM_MD5, WPDP::CHECKSUM_SHA1))');
+        assert('is_int($type)');
+        assert('in_array($type, array(WPDP::CHECKSUM_NONE, WPDP::CHECKSUM_CRC32, WPDP::CHECKSUM_MD5, WPDP::CHECKSUM_SHA1))');
 
         $checksum = '';
 
-        switch ($method) {
+        switch ($type) {
             case WPDP::CHECKSUM_NONE:
                 break;
             case WPDP::CHECKSUM_CRC32:
@@ -463,12 +463,12 @@ class WPDP_Contents extends WPDP_Common {
         return $checksum;
     }
 
-    private static function _compress(&$data, $method) {
+    private static function _compress(&$data, $type) {
         assert('is_string($data)');
-        assert('is_int($method)');
-        assert('in_array($method, array(WPDP::COMPRESSION_NONE, WPDP::COMPRESSION_GZIP, WPDP::COMPRESSION_BZIP2))');
+        assert('is_int($type)');
+        assert('in_array($type, array(WPDP::COMPRESSION_NONE, WPDP::COMPRESSION_GZIP, WPDP::COMPRESSION_BZIP2))');
 
-        switch ($method) {
+        switch ($type) {
             case WPDP::COMPRESSION_NONE:
                 break;
             case WPDP::COMPRESSION_GZIP:
@@ -485,12 +485,12 @@ class WPDP_Contents extends WPDP_Common {
         }
     }
 
-    private static function _decompress(&$data, $method) {
+    private static function _decompress(&$data, $type) {
         assert('is_string($data)');
-        assert('is_int($method)');
-        assert('in_array($method, array(WPDP::COMPRESSION_NONE, WPDP::COMPRESSION_GZIP, WPDP::COMPRESSION_BZIP2))');
+        assert('is_int($type)');
+        assert('in_array($type, array(WPDP::COMPRESSION_NONE, WPDP::COMPRESSION_GZIP, WPDP::COMPRESSION_BZIP2))');
 
-        switch ($method) {
+        switch ($type) {
             case WPDP::COMPRESSION_NONE:
                 break;
             case WPDP::COMPRESSION_GZIP:
