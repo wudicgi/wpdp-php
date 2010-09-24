@@ -904,13 +904,13 @@ class WPDP_File extends WPDP {
         $this->_stream_i = null;
 
         if (is_file($filenames[WPDP::FILE_TYPE_CONTENTS])) {
-            $this->_stream_c = new File_Stream($filenames[WPDP::FILE_TYPE_CONTENTS], $filemode);
+            $this->_stream_c = new WPIO_FileStream($filenames[WPDP::FILE_TYPE_CONTENTS], $filemode);
         }
         if (is_file($filenames[WPDP::FILE_TYPE_METADATA])) {
-            $this->_stream_m = new File_Stream($filenames[WPDP::FILE_TYPE_METADATA], $filemode);
+            $this->_stream_m = new WPIO_FileStream($filenames[WPDP::FILE_TYPE_METADATA], $filemode);
         }
         if (is_file($filenames[WPDP::FILE_TYPE_INDEXES])) {
-            $this->_stream_i = new File_Stream($filenames[WPDP::FILE_TYPE_INDEXES], $filemode);
+            $this->_stream_i = new WPIO_FileStream($filenames[WPDP::FILE_TYPE_INDEXES], $filemode);
         }
 
         parent::__construct($this->_stream_c, $this->_stream_m, $this->_stream_i, $mode);
@@ -971,9 +971,9 @@ class WPDP_File extends WPDP {
             throw $e;
         }
 
-        $stream_c = new File_Stream($filenames[WPDP::FILE_TYPE_CONTENTS], 'w+b'); // wb
-        $stream_m = new File_Stream($filenames[WPDP::FILE_TYPE_METADATA], 'w+b'); // wb
-        $stream_i = new File_Stream($filenames[WPDP::FILE_TYPE_INDEXES], 'w+b'); // wb
+        $stream_c = new WPIO_FileStream($filenames[WPDP::FILE_TYPE_CONTENTS], 'w+b'); // wb
+        $stream_m = new WPIO_FileStream($filenames[WPDP::FILE_TYPE_METADATA], 'w+b'); // wb
+        $stream_i = new WPIO_FileStream($filenames[WPDP::FILE_TYPE_INDEXES], 'w+b'); // wb
 
         parent::create($stream_c, $stream_m, $stream_i);
 
@@ -1010,9 +1010,9 @@ class WPDP_File extends WPDP {
             throw $e;
         }
 
-        $stream_c = new File_Stream($filenames[self::FILE_TYPE_CONTENTS], 'r+b');
-        $stream_m = new File_Stream($filenames[self::FILE_TYPE_METADATA], 'rb');
-        $stream_i = new File_Stream($filenames[self::FILE_TYPE_INDEXES], 'rb');
+        $stream_c = new WPIO_FileStream($filenames[self::FILE_TYPE_CONTENTS], 'r+b');
+        $stream_m = new WPIO_FileStream($filenames[self::FILE_TYPE_METADATA], 'rb');
+        $stream_i = new WPIO_FileStream($filenames[self::FILE_TYPE_INDEXES], 'rb');
 
         parent::compound($stream_c, $stream_m, $stream_i);
 
@@ -1041,8 +1041,8 @@ class WPDP_File extends WPDP {
             throw $e;
         }
 
-        $stream_c = new File_Stream($filename, 'rb');
-        $stream_out = new File_Stream($filename_out, 'w+b'); // wb
+        $stream_c = new WPIO_FileStream($filename, 'rb');
+        $stream_out = new WPIO_FileStream($filename_out, 'w+b'); // wb
 
         parent::makeLookup($stream_c, $stream_c, $stream_out);
 
@@ -1219,30 +1219,167 @@ class WPDP_Iterator implements Iterator {
     }
 }
 
+/**
+ * WPIO
+ *
+ * @category   File_System
+ * @package    WPIO
+ * @author     Wudi Liu <wudicgi@gmail.com>
+ * @copyright  2009-2010 Wudi Labs
+ * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
+ * @link       http://www.wudilabs.org/
+ */
 class WPIO {
+    // {{{ 常量
+
+    /**
+     * 定位起始点常量
+     *
+     * @global integer SEEK_SET 开始位置
+     * @global integer SEEK_CUR 当前位置
+     * @global integer SEEK_END 结尾位置
+     */
     const SEEK_SET = 0;
     const SEEK_CUR = 1;
     const SEEK_END = 2;
+
+    // }}}
 }
 
-interface WPIO_Stream {
-    public function close();
+/**
+ * WPIO_Stream
+ *
+ * @category   File_System
+ * @package    WPIO
+ * @author     Wudi Liu <wudicgi@gmail.com>
+ * @copyright  2009-2010 Wudi Labs
+ * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
+ * @link       http://www.wudilabs.org/
+ */
+abstract class WPIO_Stream {
+    // {{{ isReadable()
 
-    public function isSeekable();
+    /**
+     * 测试流是否支持读取
+     *
+     * @access public
+     *
+     * @return bool 若支持读取则返回 true, 否则返回 false
+     */
+    abstract public function isReadable();
 
-    public function isReadable();
+    // }}}
 
-    public function isWritable();
+    // {{{ isWritable()
 
-    public function seek($offset, $whence = WPIO::SEEK_SET);
+    /**
+     * 测试流是否支持写入
+     *
+     * @access public
+     *
+     * @return bool 若支持写入则返回 true, 否则返回 false
+     */
+    abstract public function isWritable();
 
-    public function tell();
+    // }}}
 
-    public function eof();
+    // {{{ isSeekable()
 
-    public function read($length);
+    /**
+     * 测试流是否支持定位
+     *
+     * @access public
+     *
+     * @return bool 若支持定位则返回 true, 否则返回 false
+     */
+    abstract public function isSeekable();
 
-    public function write($data);
+    // }}}
+
+    // {{{ close()
+
+    /**
+     * 关闭流
+     *
+     * @access public
+     *
+     * @return bool 成功时返回 true, 失败时返回 false
+     */
+    abstract public function close();
+
+    // }}}
+
+    // {{{ seek()
+
+    /**
+     * 在流中定位
+     *
+     * @access public
+     *
+     * @param int $offset   偏移量
+     * @param int $whence   定位起始点
+     *
+     * @return int 定位后指针在流中的位置
+     */
+    abstract public function seek($offset, $whence = WPIO::SEEK_SET);
+
+    // }}}
+
+    // {{{ tell()
+
+    /**
+     * 获取指针在流中的位置
+     *
+     * @access public
+     *
+     * @return int 指针在流中的位置
+     */
+    abstract public function tell();
+
+    // }}}
+
+    // {{{ read()
+
+    /**
+     * 读取流
+     *
+     * @access public
+     *
+     * @param int $length   要读取的字节数
+     *
+     * @return string 所读取的数据
+     */
+    abstract public function read($length);
+
+    // }}}
+
+    // {{{ write()
+
+    /**
+     * 写入流
+     *
+     * @access public
+     *
+     * @param string $data  要写入的数据
+     *
+     * @return int 写入的字节数
+     */
+    abstract public function write($data);
+
+    // }}}
+
+    // {{{ eof()
+
+    /**
+     * 测试指针是否到了流结束的位置
+     *
+     * @access public
+     *
+     * @return bool 如果指针到了流结束的位置则返回 true，否则返回 false
+     */
+    abstract public function eof();
+
+    // }}}
 }
 
 /**

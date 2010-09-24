@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  * MA 02110-1301 USA.
  *
- * @category   File_Formats
- * @package    WPDP
+ * @category   File_System
+ * @package    WPIO
  * @author     Wudi Liu <wudicgi@gmail.com>
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
@@ -29,16 +29,16 @@
  */
 
 /**
- * File_Stream
+ * WPIO_FileStream
  *
- * @category   File_Formats
- * @package    WPDP
+ * @category   File_System
+ * @package    WPIO
  * @author     Wudi Liu <wudicgi@gmail.com>
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
  * @link       http://www.wudilabs.org/
  */
-class File_Stream implements WPIO_Stream {
+class WPIO_FileStream extends WPIO_Stream {
     // {{{ properties
 
     /**

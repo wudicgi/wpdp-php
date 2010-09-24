@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  * MA 02110-1301 USA.
  *
- * @category   File_Formats
- * @package    WPDP
+ * @category   File_System
+ * @package    WPES
  * @author     Wudi Liu <wudicgi@gmail.com>
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
@@ -92,16 +92,16 @@ to do:
 */
 
 /**
- * File_Stream
+ * WPES_FileStream
  *
- * @category   File_Formats
- * @package    WPDP
+ * @category   File_System
+ * @package    WPES
  * @author     Wudi Liu <wudicgi@gmail.com>
  * @copyright  2009-2010 Wudi Labs
  * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
  * @link       http://www.wudilabs.org/
  */
-class File_Stream implements WPIO_Stream {
+class WPES_FileStream extends WPIO_Stream {
     /**
      * 块标识常量
      *

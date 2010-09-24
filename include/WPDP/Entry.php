@@ -572,7 +572,7 @@ class WPDP_Entry_Args extends WPDP_Entry_Information {
     // }}}
 }
 
-class WPDP_Entry_Contents_Stream implements WPIO_Stream {
+class WPDP_Entry_Contents_Stream extends WPIO_Stream {
     private $_contents = null;
     private $_args = null;
 
