@@ -261,10 +261,25 @@ class WPDP_Indexes extends WPDP_Common {
         }
         unset($node);
 
-        // to be noticed
-        $this->_node_caches = array();
-        $this->_node_parents = array();
-        $this->_node_accesses = array();
+        if ($this->_node_in_protection) {
+            $offsets = array_keys($this->_node_caches);
+            foreach ($offsets as $offset) {
+                if (array_key_exists($offset, $this->_node_locks)) {
+                    trace(__METHOD__, "node $offset is locked, skipped");
+                    continue;
+                }
+                trace(__METHOD__, "remove $offset from cache");
+                // unset 是语言结构而不是函数，键值 $offset 不存在时也不会产生错误
+                unset($this->_node_caches[$offset]);
+//                unset($this->_node_parents[$offset]); // to be noticed
+                unset($this->_node_accesses[$offset]);
+            }
+        } else {
+            trace(__METHOD__, "remove all nodes from cache");
+            $this->_node_caches = array();
+            $this->_node_parents = array();
+            $this->_node_accesses = array();
+        }
 
         // to be noticed
         $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
@@ -951,6 +966,9 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 获取一个结点
      *
+     * $offset_parent 参数为 null 时表示要获取的结点是根节点。
+     * $offset_parent 参数为缺省值 -1 时表示不需要设置父结点的偏移量信息。
+     *
      * 该方法可能会从缓存中去除某些结点
      *
      * @access private
@@ -963,6 +981,20 @@ class WPDP_Indexes extends WPDP_Common {
     private function &_getNode($offset, $offset_parent = -1) {
         assert('is_int($offset)');
         assert('is_int($offset_parent) || is_null($offset_parent)');
+
+        /* 只有在 _splitNode_GetParentNode() 方法中，当一个结点不是根节点时，获取其父结点才会使用
+         * $offset_parent = -1 的缺省参数，不设置该结点父结点的偏移量信息。
+         *
+         * index() -- 已对结点进行保护
+         * -> _treeInsert() -- 只有在插入元素后结点溢出时才调用分裂结点的方法
+         *   -> _splitNode() -- 需要调用获取父结点的方法
+         *     -> _splitNode_GetParentNode() -- 该方法只由 _splitNode() 方法调用
+         *
+         * _treeInsert() 方法在进行向 B+ 树中插入元素的操作时是从树的根节点依次向下进行的，中间
+         * 途径结点的父结点偏移量都会被保存下来。而整个过程中涉及到的结点不会被从缓存中除去，所以
+         * 在这种情况下使用该缺省参数是安全的。
+         */
+        assert('($offset_parent != -1) || array_key_exists($offset, $this->_node_parents)');
 
         trace(__METHOD__, "offset = $offset, parent = $offset_parent");
 
@@ -980,9 +1012,7 @@ class WPDP_Indexes extends WPDP_Common {
 #ifdef VERSION_WRITABLE
         $this->_optimizeCache();
 
-        if ($offset_parent == -1) {
-            assert('array_key_exists($offset, $this->_node_parents)');
-        } else {
+        if ($offset_parent != -1) {
             $this->_node_parents[$offset] = $offset_parent;
         }
 #endif
@@ -1036,6 +1066,10 @@ class WPDP_Indexes extends WPDP_Common {
 
         $offset = $this->_offset_end;
         $this->_offset_end += WPDP::NODE_BLOCK_SIZE;
+
+        if ($this->_node_in_protection) {
+            $this->_node_locks[$offset] = true;
+        }
 
         trace(__METHOD__, "node created at $offset");
 

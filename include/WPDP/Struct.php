@@ -344,13 +344,10 @@ class WPDP_Struct {
     public static function packNode(array &$object) {
         assert('is_array($object)');
 
-        // 计算该结点所含元素数
-        $object['numElement'] = count($object['elements']);
-
         assert('is_bool($object[\'isLeaf\'])');
 
-        // 将 isLeaf 的值由 bool 型转换为 int 型的 0, 1
-        $object['isLeaf'] = $object['isLeaf'] ? 1 : 0;
+        // 计算该结点所含元素数
+        $object['numElement'] = count($object['elements']);
 
         // 获取可变长度区域的二进制数据
         $blob = '';
@@ -366,7 +363,12 @@ class WPDP_Struct {
         $data = '';
         // 追加块头部信息
         foreach (self::$_structs['node']['blocks'] as $name => $code) {
-            $data .= pack($code, $object[$name]);
+            if ($name == 'isLeaf') {
+                // 将 isLeaf 的值由 bool 型转换为 int 型的 0, 1
+                $data .= pack($code, ($object[$name] ? 1 : 0));
+            } else {
+                $data .= pack($code, $object[$name]);
+            }
         }
         // 追加可变长度区域数据
         $data .= $blob;
