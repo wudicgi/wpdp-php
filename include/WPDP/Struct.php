@@ -347,6 +347,11 @@ class WPDP_Struct {
         // 计算该结点所含元素数
         $object['numElement'] = count($object['elements']);
 
+        assert('is_bool($object[\'isLeaf\'])');
+
+        // 将 isLeaf 的值由 bool 型转换为 int 型的 0, 1
+        $object['isLeaf'] = $object['isLeaf'] ? 1 : 0;
+
         // 获取可变长度区域的二进制数据
         $blob = '';
         $string = '';
@@ -382,6 +387,11 @@ class WPDP_Struct {
         // 读取块头部信息
         $head = substr($data, 0, self::$_structs['node']['size']);
         $object = unpack(self::$_structs['node']['format'], $head);
+
+        assert('in_array($object[\'isLeaf\'], array(0, 1))');
+
+        // 将 isLeaf 的值由 int 型的 0, 1 转换为 bool 型
+        $object['isLeaf'] = (bool)$object['isLeaf'];
 
         if ($object['signature'] != WPDP::NODE_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X @ 0x%X",

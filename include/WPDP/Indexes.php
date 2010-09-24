@@ -326,7 +326,7 @@ class WPDP_Indexes extends WPDP_Common {
             $node =& $this->_getNode($offset, $node['_ofsSelf']);
         }
 
-        assert('$node[\'isLeaf\'] == 1');
+        assert('$node[\'isLeaf\'] == true');
 
         trace(__METHOD__, "now at the leaf node " . $node['_ofsSelf']);
 
@@ -460,7 +460,7 @@ class WPDP_Indexes extends WPDP_Common {
             $node =& $this->_getNode($offset, $node['_ofsSelf']);
         }
 
-        assert('$node[\'isLeaf\'] == 1');
+        assert('$node[\'isLeaf\'] == true');
 
         trace(__METHOD__, "now at the leaf node " . $node['_ofsSelf']);
 
@@ -724,7 +724,7 @@ class WPDP_Indexes extends WPDP_Common {
         assert('is_array($node_parent)');
 
         assert('count($node[\'elements\']) > 0'); // 需要利用结点中的第一个键进行查找
-        assert('$node_parent[\'isLeaf\'] == 0');
+        assert('$node_parent[\'isLeaf\'] == false');
 
         trace(__METHOD__, "node_offset = " . $node['_ofsSelf']);
 
@@ -1015,18 +1015,16 @@ class WPDP_Indexes extends WPDP_Common {
      *
      * @access private
      *
-     * @param integer $is_leaf        是否为叶子结点
-     * @param integer $offset_parent  父结点的偏移量
+     * @param bool $is_leaf             是否为叶子结点
+     * @param integer $offset_parent    父结点的偏移量
      *
      * @return array 结点
      */
     private function &_createNode($is_leaf, $offset_parent) {
-        assert('is_int($is_leaf) || is_bool($is_leaf)');
+        assert('is_bool($is_leaf)');
         assert('is_int($offset_parent) || is_null($offset_parent)');
 
         trace(__METHOD__, "is_leaf = $is_leaf, parent = $offset_parent");
-
-        $is_leaf = (int)$is_leaf;
 
         $node = WPDP_Struct::create('node');
 
