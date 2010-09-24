@@ -560,7 +560,7 @@ class WPDP_Indexes extends WPDP_Common {
          * So this method needn't and shouldn't to protect the nodes in cache
          */
 
-        // 若当前结点不是根节点，直接获取其父结点并返回
+        // 若当前结点不是根结点，直接获取其父结点并返回
         if ($this->_node_parents[$node['_ofsSelf']] != null) {
             trace(__METHOD__, "the node to split has parent node");
             $node_parent =& $this->_getNode($this->_node_parents[$node['_ofsSelf']]);
@@ -966,7 +966,7 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 获取一个结点
      *
-     * $offset_parent 参数为 null 时表示要获取的结点是根节点。
+     * $offset_parent 参数为 null 时表示要获取的结点是根结点。
      * $offset_parent 参数为缺省值 -1 时表示不需要设置父结点的偏移量信息。
      *
      * 该方法可能会从缓存中去除某些结点
@@ -982,7 +982,7 @@ class WPDP_Indexes extends WPDP_Common {
         assert('is_int($offset)');
         assert('is_int($offset_parent) || is_null($offset_parent)');
 
-        /* 只有在 _splitNode_GetParentNode() 方法中，当一个结点不是根节点时，获取其父结点才会使用
+        /* 只有在 _splitNode_GetParentNode() 方法中，当一个结点不是根结点时，获取其父结点才会使用
          * $offset_parent = -1 的缺省参数，不设置该结点父结点的偏移量信息。
          *
          * index() -- 已对结点进行保护
@@ -990,7 +990,7 @@ class WPDP_Indexes extends WPDP_Common {
          *   -> _splitNode() -- 需要调用获取父结点的方法
          *     -> _splitNode_GetParentNode() -- 该方法只由 _splitNode() 方法调用
          *
-         * _treeInsert() 方法在进行向 B+ 树中插入元素的操作时是从树的根节点依次向下进行的，中间
+         * _treeInsert() 方法在进行向 B+ 树中插入元素的操作时是从树的根结点依次向下进行的，中间
          * 途径结点的父结点偏移量都会被保存下来。而整个过程中涉及到的结点不会被从缓存中除去，所以
          * 在这种情况下使用该缺省参数是安全的。
          */

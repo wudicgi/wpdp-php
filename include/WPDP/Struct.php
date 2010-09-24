@@ -149,7 +149,7 @@ class WPDP_Struct {
                 '__reserved_char' => 'C',
                 'numElement' => 'v', // 元素数量
                 'ofsExtra' => 'V', // 补充偏移量 (局部)
-                // 对于叶子节点，ofsExtra 为下一个相邻叶子节点的偏移量
+                // 对于叶子结点，ofsExtra 为下一个相邻叶子结点的偏移量
                 // 对于普通结点，ofsExtra 为比第一个键还要小的键所在结点的偏移量
                 '__padding' => 'a20' // 填充块头部到 32 bytes
                 // to be noticed, related to NODE_DATA_SIZE
