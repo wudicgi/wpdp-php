@@ -349,7 +349,9 @@ class WPDP {
         assert('is_a($stream_c, \'WPIO_Stream\')');
         assert('is_a($stream_m, \'WPIO_Stream\') || is_null($stream_m)');
         assert('is_a($stream_i, \'WPIO_Stream\') || is_null($stream_m)');
-        assert('is_int($mode) && in_array($mode, array(self::MODE_READONLY, self::MODE_READWRITE))');
+        assert('is_int($mode)');
+
+        assert('in_array($mode, array(self::MODE_READONLY, self::MODE_READWRITE))');
 
         // 检查参数
         if ($mode != self::MODE_READONLY && $mode != self::MODE_READWRITE) {
@@ -357,7 +359,7 @@ class WPDP {
         }
 
         // 读取文件的头信息
-        $stream_c->seek(0, SEEK_SET);
+        $stream_c->seek(0, WPIO::SEEK_SET);
         $header = WPDP_Struct::unpackHeader($stream_c);
 
         if ($header['limit'] != self::FILE_LIMIT_INT32) {
@@ -461,7 +463,7 @@ class WPDP {
         $headeri = self::_readHeaderWithCheck($stream_i, self::FILE_TYPE_INDEXES, 'ofsIndexes');
 
         // 填充内容部分长度到基本块大小的整数倍
-        $stream_c->seek(0, SEEK_END);
+        $stream_c->seek(0, WPIO::SEEK_END);
         $padding = self::BASE_BLOCK_SIZE - ($stream_c->tell() % self::BASE_BLOCK_SIZE);
         $stream_c->write(str_repeat("\x00", $padding));
 
@@ -479,7 +481,7 @@ class WPDP {
         $header['type'] = self::FILE_TYPE_COMPOUND;
 
         // 更新头信息
-        $stream_c->seek(0, SEEK_SET);
+        $stream_c->seek(0, WPIO::SEEK_SET);
         $data_header = WPDP_Struct::packHeader($header);
         $stream_c->write($data_header);
 
@@ -504,7 +506,7 @@ class WPDP {
         $header = $headerm;
         $header['type'] = self::FILE_TYPE_UNDEFINED;
         // 将头信息写入到输出文件中
-        $stream_out->seek(0, SEEK_SET);
+        $stream_out->seek(0, WPIO::SEEK_SET);
         $data_header = WPDP_Struct::packHeader($header);
         $stream_out->write($data_header);
 
@@ -522,7 +524,7 @@ class WPDP {
         $header['type'] = self::FILE_TYPE_LOOKUP;
 
         // 更新头信息
-        $stream_out->seek(0, SEEK_SET);
+        $stream_out->seek(0, WPIO::SEEK_SET);
         $data_header = WPDP_Struct::packHeader($header);
         $stream_out->write($data_header);
 
@@ -613,6 +615,7 @@ class WPDP {
      */
     public function setCompression($type) {
         assert('is_int($type)');
+
         assert('in_array($type, array(self::COMPRESSION_NONE, self::COMPRESSION_GZIP, self::COMPRESSION_BZIP2))');
 
         if ($type != self::COMPRESSION_NONE &&
@@ -637,6 +640,7 @@ class WPDP {
      */
     public function setChecksum($type = self::CHECKSUM_NONE) {
         assert('is_int($type)');
+
         assert('in_array($type, array(self::CHECKSUM_NONE, self::CHECKSUM_CRC32, self::CHECKSUM_MD5, self::CHECKSUM_SHA1))');
 
         if ($type != self::CHECKSUM_NONE &&
@@ -812,7 +816,14 @@ class WPDP {
 #endif
 
     private static function _readHeaderWithCheck(WPIO_Stream $stream, $file_type, $offset_name) {
-        $stream->seek(0, SEEK_SET);
+        assert('is_a($stream, \'WPIO_Stream\')');
+        assert('is_int($file_type)');
+        assert('is_string($offset_name)');
+
+        assert('in_array($file_type, array(self::FILE_TYPE_CONTENTS, self::FILE_TYPE_METADATA, self::FILE_TYPE_INDEXES))');
+        assert('in_array($offset_name, array(\'ofsContents\', \'ofsMetadata\', \'ofsIndexes\'))');
+
+        $stream->seek(0, WPIO::SEEK_SET);
         $header = WPDP_Struct::unpackHeader($stream);
 
         if ($header['type'] != $file_type && $header['type'] != self::FILE_TYPE_COMPOUND) {
@@ -827,7 +838,12 @@ class WPDP {
     }
 
     private static function _streamCopy(WPIO_Stream $dst, WPIO_Stream $src, $offset, $length) {
-        $src->seek($offset, SEEK_SET);
+        assert('is_a($dst, \'WPIO_Stream\')');
+        assert('is_a($src, \'WPIO_Stream\')');
+        assert('is_int($offset)');
+        assert('is_int($length)');
+
+        $src->seek($offset, WPIO::SEEK_SET);
 
         $didwrite = 0;
 
@@ -865,7 +881,9 @@ class WPDP_File extends WPDP {
      */
     function __construct($filename, $mode = WPDP::MODE_READONLY) {
         assert('is_string($filename)');
-        assert('is_int($mode) && in_array($mode, array(self::MODE_READONLY, self::MODE_READWRITE))');
+        assert('is_int($mode)');
+
+        assert('in_array($mode, array(self::MODE_READONLY, self::MODE_READWRITE))');
 
         // 检查参数
         if (!is_string($filename)) {
@@ -1201,6 +1219,12 @@ class WPDP_Iterator implements Iterator {
     }
 }
 
+class WPIO {
+    const SEEK_SET = 0;
+    const SEEK_CUR = 1;
+    const SEEK_END = 2;
+}
+
 interface WPIO_Stream {
     public function close();
 
@@ -1210,7 +1234,7 @@ interface WPIO_Stream {
 
     public function isWritable();
 
-    public function seek($offset, $whence = SEEK_SET);
+    public function seek($offset, $whence = WPIO::SEEK_SET);
 
     public function tell();
 

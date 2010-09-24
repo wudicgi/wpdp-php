@@ -604,15 +604,17 @@ class WPDP_Entry_Contents_Stream implements WPIO_Stream {
         return false;
     }
 
-    public function seek($offset, $whence = SEEK_SET) {
+    public function seek($offset, $whence = WPIO::SEEK_SET) {
         assert('is_int($offset)');
-        assert('in_array($whence, array(SEEK_SET, SEEK_END, SEEK_CUR))');
+        assert('is_int($whence)');
 
-        if ($whence == SEEK_SET) {
+        assert('in_array($whence, array(WPIO::SEEK_SET, WPIO::SEEK_CUR, WPIO::SEEK_END))');
+
+        if ($whence == WPIO::SEEK_SET) {
             $this->_offset = $offset;
-        } elseif ($whence == SEEK_END) {
+        } elseif ($whence == WPIO::SEEK_END) {
             $this->_offset = $this->_args->originalLength + $offset;
-        } elseif ($whence == SEEK_CUR) {
+        } elseif ($whence == WPIO::SEEK_CUR) {
             $this->_offset += $offset;
         }
 

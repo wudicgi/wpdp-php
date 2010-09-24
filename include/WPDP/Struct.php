@@ -189,7 +189,9 @@ class WPDP_Struct {
 #ifdef VERSION_WRITABLE
 
     public static function create($type) {
-        assert('is_string($type) && isset(self::$_structs[$type])');
+        assert('is_string($type)');
+
+        assert('isset(self::$_structs[$type])');
 
         $object = self::$_structs[$type]['default'];
 
@@ -410,8 +412,11 @@ class WPDP_Struct {
 #ifdef VERSION_WRITABLE
 
     private static function _packFixed($type, array &$object) {
-        assert('is_string($type) && isset(self::$_structs[$type])');
+        assert('is_string($type)');
         assert('is_array($object)');
+
+        assert('isset(self::$_structs[$type])');
+        assert('!isset(self::$_structs[$type][\'blocks\'][\'lenBlock\'])');
 
         $data = '';
 
@@ -426,8 +431,11 @@ class WPDP_Struct {
 #endif
 
     private static function _unpackFixed($type, WPIO_Stream $stream) {
-        assert('is_string($type) && isset(self::$_structs[$type])');
+        assert('is_string($type)');
         assert('is_a($stream, \'WPIO_Stream\')');
+
+        assert('isset(self::$_structs[$type])');
+        assert('!isset(self::$_structs[$type][\'blocks\'][\'lenBlock\'])');
 
         $data = $stream->read(self::$_structs[$type]['size']);
 
@@ -440,14 +448,17 @@ class WPDP_Struct {
 #ifdef VERSION_WRITABLE
 
     private static function _packVariant($type, array &$object, &$blob) {
-        assert('is_string($type) && isset(self::$_structs[$type])');
+        assert('is_string($type)');
         assert('is_array($object)');
         assert('is_string($blob)');
+
+        assert('isset(self::$_structs[$type])');
+        assert('isset(self::$_structs[$type][\'blocks\'][\'lenBlock\'])');
 
         $data = '';
 
         // 获取该结构类型的默认块大小
-        $block_size = self::_getBlockSize($type);
+        $block_size = self::_getDefaultBlockSize($type);
 
         // 计算内容实际长度和块长度
         $actual_length = self::$_structs[$type]['size'] + strlen($blob);
@@ -470,11 +481,14 @@ class WPDP_Struct {
 #endif
 
     private static function _unpackVariant($type, WPIO_Stream $stream, $noblob) {
-        assert('is_string($type) && isset(self::$_structs[$type])');
+        assert('is_string($type)');
         assert('is_a($stream, \'WPIO_Stream\')');
 
+        assert('isset(self::$_structs[$type])');
+        assert('isset(self::$_structs[$type][\'blocks\'][\'lenBlock\'])');
+
         // 获取该结构类型的默认块大小
-        $block_size = self::_getBlockSize($type);
+        $block_size = self::_getDefaultBlockSize($type);
 
         $data = $stream->read($block_size);
 
@@ -626,9 +640,12 @@ class WPDP_Struct {
         return $indexes;
     }
 
-    // 获取结构块大小 (各结构类型块大小固定)
-    private static function _getBlockSize($type) {
+    // 获取可变长度型结构默认块大小
+    private static function _getDefaultBlockSize($type) {
         assert('is_string($type)');
+
+        assert('isset(self::$_structs[$type])');
+        assert('isset(self::$_structs[$type][\'blocks\'][\'lenBlock\'])');
 
         switch ($type) {
             case 'metadata':

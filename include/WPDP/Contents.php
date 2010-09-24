@@ -98,6 +98,9 @@ class WPDP_Contents extends WPDP_Common {
      */
     function __construct(WPIO_Stream $stream, $mode) {
         assert('is_a($stream, \'WPIO_Stream\')');
+        assert('is_int($mode)');
+
+        assert('in_array($mode, array(WPDP::MODE_READONLY, WPDP::MODE_READWRITE))');
 
         parent::__construct(WPDP::SECTION_TYPE_CONTENTS, $stream, $mode);
     }
@@ -140,7 +143,7 @@ class WPDP_Contents extends WPDP_Common {
      * @access public
      */
     public function flush() {
-        $this->_seek(0, SEEK_END, self::ABSOLUTE);
+        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
         $length = $this->_tell(self::RELATIVE);
         $this->_header['lenContents'] = $length;
         $this->_writeHeader();
@@ -154,7 +157,7 @@ class WPDP_Contents extends WPDP_Common {
         assert('is_a($args, \'WPDP_Entry_Args\')');
 
         if ($args->offsetTableOffset != 0) {
-            $this->_seek($args->offsetTableOffset, SEEK_SET, self::ABSOLUTE);
+            $this->_seek($args->offsetTableOffset, WPIO::SEEK_SET, self::ABSOLUTE);
 
             $data = $this->_read($args->chunkCount * 4);
             $offsets = array_values(unpack('V*', $data));
@@ -181,8 +184,10 @@ class WPDP_Contents extends WPDP_Common {
         return array($offsets, $sizes);
     }
 
-    public function getContents($args, $offset, $length) {
+    public function getContents(WPDP_Entry_Args $args, $offset, $length) {
         assert('is_a($args, \'WPDP_Entry_Args\')');
+        assert('is_int($offset)');
+        assert('is_int($length)');
 
         trace(__METHOD__, "offset = " . $offset . ", file length = " . $args->originalLength . ", length to read = " . $length);
 
@@ -231,7 +236,7 @@ class WPDP_Contents extends WPDP_Common {
         return $data;
 /*
         if ($args->checksumTableOffset != 0) {
-            $this->_seek($args->checksumTableOffset, SEEK_SET, self::ABSOLUTE);
+            $this->_seek($args->checksumTableOffset, WPIO::SEEK_SET, self::ABSOLUTE);
 
             switch ($args->checksum) {
                 case WPDP::CHECKSUM_CRC32:
@@ -265,11 +270,11 @@ class WPDP_Contents extends WPDP_Common {
      * @param integer $length   内容长度
      * @param object  $args     WPDP_Entry_Args 对象
      */
-    public function begin($length, &$args) {
+    public function begin($length, WPDP_Entry_Args $args) {
         assert('is_int($length)');
         assert('is_a($args, \'WPDP_Entry_Args\')');
 
-        $this->_seek(0, SEEK_END, self::ABSOLUTE);
+        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
         $offset_begin = $this->_tell(self::ABSOLUTE);
 
         $args->contentsOffset = $offset_begin;
@@ -437,6 +442,7 @@ class WPDP_Contents extends WPDP_Common {
     private static function _checksum(&$data, $type) {
         assert('is_string($data)');
         assert('is_int($type)');
+
         assert('in_array($type, array(WPDP::CHECKSUM_NONE, WPDP::CHECKSUM_CRC32, WPDP::CHECKSUM_MD5, WPDP::CHECKSUM_SHA1))');
 
         $checksum = '';
@@ -466,6 +472,7 @@ class WPDP_Contents extends WPDP_Common {
     private static function _compress(&$data, $type) {
         assert('is_string($data)');
         assert('is_int($type)');
+
         assert('in_array($type, array(WPDP::COMPRESSION_NONE, WPDP::COMPRESSION_GZIP, WPDP::COMPRESSION_BZIP2))');
 
         switch ($type) {
@@ -488,6 +495,7 @@ class WPDP_Contents extends WPDP_Common {
     private static function _decompress(&$data, $type) {
         assert('is_string($data)');
         assert('is_int($type)');
+
         assert('in_array($type, array(WPDP::COMPRESSION_NONE, WPDP::COMPRESSION_GZIP, WPDP::COMPRESSION_BZIP2))');
 
         switch ($type) {

@@ -139,12 +139,15 @@ class WPDP_Indexes extends WPDP_Common {
      */
     function __construct(WPIO_Stream $stream, $mode) {
         assert('is_a($stream, \'WPIO_Stream\')');
+        assert('is_int($mode)');
+
+        assert('in_array($mode, array(WPDP::MODE_READONLY, WPDP::MODE_READWRITE))');
 
         parent::__construct(WPDP::SECTION_TYPE_INDEXES, $stream, $mode);
 
         $this->_readTable();
 
-        $this->_seek(0, SEEK_END, self::ABSOLUTE); // to be noticed
+        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE); // to be noticed
         $this->_offset_end = $this->_tell(self::RELATIVE);
 
         trace(__METHOD__, "offset_end = $this->_offset_end");
@@ -167,18 +170,20 @@ class WPDP_Indexes extends WPDP_Common {
      * @throws WPDP_InternalException
      */
     public static function create(WPIO_Stream $stream) {
+        assert('is_a($stream, \'WPIO_Stream\')');
+
         parent::create(WPDP::FILE_TYPE_INDEXES, WPDP::SECTION_TYPE_INDEXES, $stream);
 
         $table = WPDP_Struct::create('index_table');
         $data_table = WPDP_Struct::packIndexTable($table);
         $stream->write($data_table);
 
-        $stream->seek(WPDP::HEADER_BLOCK_SIZE, SEEK_SET);
+        $stream->seek(WPDP::HEADER_BLOCK_SIZE, WPIO::SEEK_SET);
         $section = WPDP_Struct::unpackSection($stream);
         $section['ofsTable'] = WPDP::SECTION_BLOCK_SIZE;
 
         $data_section = WPDP_Struct::packSection($section);
-        $stream->seek(WPDP::HEADER_BLOCK_SIZE, SEEK_SET);
+        $stream->seek(WPDP::HEADER_BLOCK_SIZE, WPIO::SEEK_SET);
         $stream->write($data_section);
 
         return true;
@@ -196,7 +201,7 @@ class WPDP_Indexes extends WPDP_Common {
      * @access private
      */
     private function _readTable() {
-        $this->_seek($this->_section['ofsTable'], SEEK_SET, self::RELATIVE);
+        $this->_seek($this->_section['ofsTable'], WPIO::SEEK_SET, self::RELATIVE);
         $this->_table = WPDP_Struct::unpackIndexTable($this->_stream);
     }
 
@@ -219,7 +224,7 @@ class WPDP_Indexes extends WPDP_Common {
         $length_current = $this->_table['lenBlock'];
 
         if ($length_current > $length_original) {
-            $this->_seek(0, SEEK_END, self::ABSOLUTE);
+            $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
             $offset_new = $this->_tell(self::RELATIVE);
             $this->_write($data_table);
 
@@ -228,7 +233,7 @@ class WPDP_Indexes extends WPDP_Common {
             $this->_section['ofsTable'] = $offset_new;
             $this->_writeSection();
         } else {
-            $this->_seek($offset, SEEK_SET, self::RELATIVE);
+            $this->_seek($offset, WPIO::SEEK_SET, self::RELATIVE);
             $this->_write($data_table);
         }
     }
@@ -262,7 +267,7 @@ class WPDP_Indexes extends WPDP_Common {
         $this->_node_accesses = array();
 
         // to be noticed
-        $this->_seek(0, SEEK_END, self::ABSOLUTE);
+        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
         $length = $this->_tell(self::RELATIVE);
         $this->_header['lenIndexes'] = $length;
         $this->_writeHeader();
@@ -426,11 +431,11 @@ class WPDP_Indexes extends WPDP_Common {
      * @return bool 总是 true
      */
     private function _treeInsert($root_offset, $key, $value) {
-        trace(__METHOD__, "root_offset = $root_offset, key = $key, value = $value");
-
         assert('is_int($root_offset)');
         assert('is_string($key)');
         assert('is_int($value)');
+
+        trace(__METHOD__, "root_offset = $root_offset, key = $key, value = $value");
 
         /* Possible traces:
          * ... -> index() [PROTECTED] -> _treeInsert()
@@ -488,6 +493,11 @@ class WPDP_Indexes extends WPDP_Common {
      * @return bool 总是 true
      */
     private function _splitNode(array &$node) {
+        assert('is_array($node)');
+
+        assert('$this->_isOverflowed($node) == true');
+        assert('count($node[\'elements\']) >= 2');
+
         trace(__METHOD__, "node_offset = " . $node['_ofsSelf'] . ", is_leaf = " . $node['isLeaf']);
 
         /* Possible traces:
@@ -496,11 +506,6 @@ class WPDP_Indexes extends WPDP_Common {
          *
          * So this method needn't and shouldn't to protect the nodes in cache
          */
-
-        assert('is_array($node)');
-
-        assert('$this->_isOverflowed($node) == true');
-        assert('count($node[\'elements\']) >= 2');
 
         /*
         $count_elements = count($node['elements']);
@@ -532,6 +537,8 @@ class WPDP_Indexes extends WPDP_Common {
 #endif
 
     private function &_splitNode_GetParentNode(array &$node) {
+        assert('is_array($node)');
+
         /* Possible traces:
          * ... -> _splitNode() [PROTECTED] -> _splitNode_GetParentNode()
          *
@@ -574,6 +581,10 @@ class WPDP_Indexes extends WPDP_Common {
     }
 
     private function _splitNode_Divide(array &$node, array &$node_2, array &$node_parent) {
+        assert('is_array($node)');
+        assert('is_array($node_2)');
+        assert('is_array($node_parent)');
+
         /* Possible traces:
          * ... -> _splitNode() [PROTECTED] -> _splitNode_Divide()
          *
@@ -625,6 +636,9 @@ class WPDP_Indexes extends WPDP_Common {
     }
 
     private function _splitNode_GetMiddle(array &$node, array &$node_2) {
+        assert('is_array($node)');
+        assert('is_array($node_2)');
+
         /* Possible traces:
          * ... -> _splitNode_Divide() [PROTECTED] -> _splitNode_GetMiddle()
          *
@@ -706,6 +720,12 @@ class WPDP_Indexes extends WPDP_Common {
      * @return integer 位置
      */
     private function _splitNode_GetPositionInParent(array &$node, array &$node_parent) {
+        assert('is_array($node)');
+        assert('is_array($node_parent)');
+
+        assert('count($node[\'elements\']) > 0'); // 需要利用结点中的第一个键进行查找
+        assert('$node_parent[\'isLeaf\'] == 0');
+
         trace(__METHOD__, "node_offset = " . $node['_ofsSelf']);
 
         /* Possible traces:
@@ -713,12 +733,6 @@ class WPDP_Indexes extends WPDP_Common {
          *
          * So this method needn't and shouldn't to protect the nodes in cache
          */
-
-        assert('is_array($node)');
-        assert('is_array($node_parent)');
-
-        assert('count($node[\'elements\']) > 0'); // 需要利用结点中的第一个键进行查找
-        assert('$node_parent[\'isLeaf\'] == 0');
 
         $offset = $node['_ofsSelf'];
 
@@ -769,11 +783,11 @@ class WPDP_Indexes extends WPDP_Common {
      * @return bool 总是 true
      */
     private function _appendElement(array &$node, $key, $value) {
-        trace(__METHOD__, "node = " . $node['_ofsSelf'] . ", key = $key, value = $value");
-
         assert('is_array($node)');
         assert('is_string($key)');
         assert('is_int($value)');
+
+        trace(__METHOD__, "node = " . $node['_ofsSelf'] . ", key = $key, value = $value");
 
         if (!array_key_exists($node['_ofsSelf'], $this->_node_caches)) {
             echo "Fatal error: node have been threw away.\n";
@@ -820,14 +834,14 @@ class WPDP_Indexes extends WPDP_Common {
      * @return bool 总是 true
      */
     private function _insertElementAfter(array &$node, $key, $value, $pos) {
-        trace(__METHOD__, "node = " . $node['_ofsSelf'] . ", key = $key, value = $value, after pos $pos");
-
         assert('is_array($node)');
         assert('is_string($key)');
         assert('is_int($value)');
         assert('is_int($pos)');
 
         assert('$pos >= -1');
+
+        trace(__METHOD__, "node = " . $node['_ofsSelf'] . ", key = $key, value = $value, after pos $pos");
 
         if (!array_key_exists($node['_ofsSelf'], $this->_node_caches)) {
             echo "Fatal error: node have been threw away.\n";
@@ -947,10 +961,10 @@ class WPDP_Indexes extends WPDP_Common {
      * @return array 结点
      */
     private function &_getNode($offset, $offset_parent = -1) {
-        trace(__METHOD__, "offset = $offset, parent = $offset_parent");
-
         assert('is_int($offset)');
         assert('is_int($offset_parent) || is_null($offset_parent)');
+
+        trace(__METHOD__, "offset = $offset, parent = $offset_parent");
 
         if (array_key_exists($offset, $this->_node_caches)) {
             trace(__METHOD__, "found in cache");
@@ -975,7 +989,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         trace(__METHOD__, "read from file");
 
-        $this->_seek($offset, SEEK_SET, self::RELATIVE);
+        $this->_seek($offset, WPIO::SEEK_SET, self::RELATIVE);
         $this->_node_caches[$offset] = WPDP_Struct::unpackNode($this->_stream);
         $this->_node_caches[$offset]['_ofsSelf'] = $offset;
 #ifdef VERSION_WRITABLE
@@ -1007,10 +1021,10 @@ class WPDP_Indexes extends WPDP_Common {
      * @return array 结点
      */
     private function &_createNode($is_leaf, $offset_parent) {
-        trace(__METHOD__, "is_leaf = $is_leaf, parent = $offset_parent");
-
         assert('is_int($is_leaf) || is_bool($is_leaf)');
         assert('is_int($offset_parent) || is_null($offset_parent)');
+
+        trace(__METHOD__, "is_leaf = $is_leaf, parent = $offset_parent");
 
         $is_leaf = (int)$is_leaf;
 
@@ -1128,11 +1142,11 @@ class WPDP_Indexes extends WPDP_Common {
      * @param array $node  结点
      */
     private function _writeNode(array &$node) {
-        trace(__METHOD__, "node_offset = " . $node['_ofsSelf'] . ", parent_offset = " . $this->_node_parents[$node['_ofsSelf']]);
-
         assert('is_array($node)');
 
         assert('$this->_isOverflowed($node) == false');
+
+        trace(__METHOD__, "node_offset = " . $node['_ofsSelf'] . ", parent_offset = " . $this->_node_parents[$node['_ofsSelf']]);
 
         $data_node = WPDP_Struct::packNode($node);
 
@@ -1179,11 +1193,11 @@ class WPDP_Indexes extends WPDP_Common {
      * @return integer 位置
      */
     private function _binarySearchLeftmost(array &$node, $desired, $for_lookup = false) {
-        trace(__METHOD__, "desired = $desired" . ($for_lookup ? ", for lookup" : ""));
-
         assert('is_array($node)');
         assert('is_string($desired)');
         assert('is_bool($for_lookup)');
+
+        trace(__METHOD__, "desired = $desired" . ($for_lookup ? ", for lookup" : ""));
 
         $count = count($node['elements']);
 
@@ -1262,11 +1276,11 @@ class WPDP_Indexes extends WPDP_Common {
      * @return integer 位置
      */
     private function _binarySearchRightmost(array &$node, $desired, $for_insert = false) {
-        trace(__METHOD__, "desired = $desired" . ($for_insert ? ", for insert" : ""));
-
         assert('is_array($node)');
         assert('is_string($desired)');
         assert('is_bool($for_insert)');
+
+        trace(__METHOD__, "desired = $desired" . ($for_insert ? ", for insert" : ""));
 
         $count = count($node['elements']);
 
@@ -1327,13 +1341,13 @@ class WPDP_Indexes extends WPDP_Common {
      *                 等于则返回 0
      */
     private function _keyCompare(array &$node, $index, $key) {
-        trace(__METHOD__, "key_1 = [$index] = " . $node['elements'][$index]['key'] . ", key_2 = $key");
-
         assert('is_array($node)');
         assert('is_int($index)');
         assert('is_string($key)');
 
         assert('array_key_exists($index, $node[\'elements\'])');
+
+        trace(__METHOD__, "key_1 = [$index] = " . $node['elements'][$index]['key'] . ", key_2 = $key");
 
         return strcmp($node['elements'][$index]['key'], $key);
     }

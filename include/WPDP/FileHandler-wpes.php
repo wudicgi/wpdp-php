@@ -289,14 +289,14 @@ class File_Stream implements WPIO_Stream {
         return true;
     }
 
-    public function seek($offset, $whence = SEEK_SET) {
+    public function seek($offset, $whence = WPIO::SEEK_SET) {
         trace(__METHOD__, ((string)$this->_fp) . ": " . "current offset = " . $this->_offset);
 
-        if ($whence == SEEK_SET) {
+        if ($whence == WPIO::SEEK_SET) {
             $this->_offset = $offset;
-        } elseif ($whence == SEEK_END) {
+        } elseif ($whence == WPIO::SEEK_END) {
             $this->_offset = $this->_length + $offset;
-        } elseif ($whence == SEEK_CUR) {
+        } elseif ($whence == WPIO::SEEK_CUR) {
             $this->_offset += $offset;
         }
 

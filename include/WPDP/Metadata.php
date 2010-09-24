@@ -54,6 +54,9 @@ class WPDP_Metadata extends WPDP_Common {
      */
     function __construct(WPIO_Stream $stream, $mode) {
         assert('is_a($stream, \'WPIO_Stream\')');
+        assert('is_int($mode)');
+
+        assert('in_array($mode, array(WPDP::MODE_READONLY, WPDP::MODE_READWRITE))');
 
         parent::__construct(WPDP::SECTION_TYPE_METADATA, $stream, $mode);
     }
@@ -96,7 +99,7 @@ class WPDP_Metadata extends WPDP_Common {
      * @access public
      */
     public function flush() {
-        $this->_seek(0, SEEK_END, self::ABSOLUTE);
+        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
         $length = $this->_tell(self::RELATIVE);
         $this->_header['lenMetadata'] = $length;
         $this->_writeHeader();
@@ -107,11 +110,11 @@ class WPDP_Metadata extends WPDP_Common {
 #endif
 
     public function getMetadata($offset) {
-        trace(__METHOD__, "offset = $offset");
-
         assert('is_int($offset)');
 
-        $this->_seek($offset, SEEK_SET, self::RELATIVE);
+        trace(__METHOD__, "offset = $offset");
+
+        $this->_seek($offset, WPIO::SEEK_SET, self::RELATIVE);
         $metadata = WPDP_Struct::unpackMetadata($this->_stream);
 
         $metadata['_offset'] = $offset;
@@ -131,10 +134,10 @@ class WPDP_Metadata extends WPDP_Common {
         return $metadata;
     }
 
-    public function getNext($metadata) {
-        assert('is_array($metadata)');
+    public function getNext(array &$current) {
+        assert('is_array($current)');
 
-        $offset_next = $metadata['_offset'] + $metadata['lenBlock'];
+        $offset_next = $current['_offset'] + $current['lenBlock'];
         if ($offset_next >= $this->_header['lenMetadata']) {
             return false;
         }
@@ -191,7 +194,7 @@ class WPDP_Metadata extends WPDP_Common {
     private function _writeMetadata(array &$metadata) {
         assert('is_array($metadata)');
 
-        $this->_seek(0, SEEK_END, self::ABSOLUTE); // to be noticed
+        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE); // to be noticed
         $offset = $this->_tell(self::RELATIVE);
 
         $data_metadata = WPDP_Struct::packMetadata($metadata);

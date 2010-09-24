@@ -84,8 +84,14 @@ class File_Stream implements WPIO_Stream {
         return true;
     }
 
-    public function seek($offset, $whence = SEEK_SET) {
-        return fseek($this->_fp, $offset, $whence);
+    public function seek($offset, $whence = WPIO::SEEK_SET) {
+        static $table = array(
+            WPIO::SEEK_SET => SEEK_SET,
+            WPIO::SEEK_CUR => SEEK_CUR,
+            WPIO::SEEK_END => SEEK_END
+        );
+
+        return fseek($this->_fp, $offset, $table[$whence]);
     }
 
     public function tell() {
