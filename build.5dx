@@ -56,7 +56,7 @@ foreach ($lines as $line) {
     $lines_2[] = $line;
 }
 
-file_put_contents('builds/' . $file, implode('', $lines_2));
+file_put_contents('builds/full/' . $file, implode('', $lines_2));
 
 }
 
