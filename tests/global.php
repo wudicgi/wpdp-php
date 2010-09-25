@@ -1,7 +1,11 @@
 <?php
 $debug = 1;
 
-set_include_path(($debug ? '../include' : '../release') . PATH_SEPARATOR . get_include_path());
+$paths_to_add = array(
+    '../../wpio/' . ($debug ? 'source' : 'builds'),
+    '../' . ($debug ? 'include' : 'release')
+);
+set_include_path(implode(PATH_SEPARATOR, $paths_to_add) . PATH_SEPARATOR . get_include_path());
 
 define('BACKSPACE_8', str_repeat("\x08", 8));
 define('BACKSPACE_19', str_repeat("\x08", 19));

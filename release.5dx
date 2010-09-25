@@ -1,6 +1,6 @@
 <?php
 $files = array('WPDP.php', 'WPDP/Common.php', 'WPDP/Contents.php', 'WPDP/Entry.php',
-'WPDP/FileHandler.php', 'WPDP/Indexes.php', 'WPDP/Metadata.php', 'WPDP/Struct.php');
+'WPDP/Indexes.php', 'WPDP/Metadata.php', 'WPDP/Struct.php');
 
 $version_writable = true;
 

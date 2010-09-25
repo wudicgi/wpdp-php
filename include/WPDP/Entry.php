@@ -588,20 +588,20 @@ class WPDP_Entry_Contents_Stream extends WPIO_Stream {
         $this->_offset = 0;
     }
 
-    public function close() {
-        // to be noticed
-    }
-
-    public function isSeekable() {
-        return true;
-    }
-
     public function isReadable() {
         return true;
     }
 
     public function isWritable() {
         return false;
+    }
+
+    public function isSeekable() {
+        return true;
+    }
+
+    public function close() {
+        // to be noticed
     }
 
     public function seek($offset, $whence = WPIO::SEEK_SET) {
@@ -625,10 +625,6 @@ class WPDP_Entry_Contents_Stream extends WPIO_Stream {
         return $this->_offset;
     }
 
-    public function eof() {
-        return ($this->_offset == $this->_args->originalLength);
-    }
-
     public function read($length) {
         assert('is_int($length)');
 
@@ -642,6 +638,10 @@ class WPDP_Entry_Contents_Stream extends WPIO_Stream {
         assert('is_string($data)');
 
         // to be noticed
+    }
+
+    public function eof() {
+        return ($this->_offset == $this->_args->originalLength);
     }
 }
 
