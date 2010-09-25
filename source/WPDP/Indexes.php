@@ -312,11 +312,10 @@ class WPDP_Indexes extends WPDP_Common {
         assert('is_string($attr_name)');
         assert('is_string($attr_value)');
 
-        /* Possible traces:
-         * EXTERNAL -> find()
-         *
-         * So this method NEED to protect the nodes in cache
-         */
+        // Possible traces:
+        // EXTERNAL -> find()
+        //
+        // So this method NEED to protect the nodes in cache
 
         if (!array_key_exists($attr_name, $this->_table['indexes'])) {
             throw new WPDP_InvalidAttributeNameException("Attribute $attr_name has no index");
@@ -392,11 +391,10 @@ class WPDP_Indexes extends WPDP_Common {
     public function index(WPDP_Entry_Args $args) {
         assert('is_a($args, \'WPDP_Entry_Args\')');
 
-        /* Possible traces:
-         * EXTERNAL -> index()
-         *
-         * So this method NEED to protect the nodes in cache
-         */
+        // Possible traces:
+        // EXTERNAL -> index()
+        //
+        // So this method NEED to protect the nodes in cache
 
         $this->_beginNodeProtection();
 
@@ -454,11 +452,10 @@ class WPDP_Indexes extends WPDP_Common {
 
         trace(__METHOD__, "root_offset = $root_offset, key = $key, value = $value");
 
-        /* Possible traces:
-         * ... -> index() [PROTECTED] -> _treeInsert()
-         *
-         * So this method needn't and shouldn't to protect the nodes in cache
-         */
+        // Possible traces:
+        // ... -> index() [PROTECTED] -> _treeInsert()
+        //
+        // So this method needn't and shouldn't to protect the nodes in cache
 
         // 当前结点的偏移量
         $offset = $root_offset;
@@ -517,12 +514,11 @@ class WPDP_Indexes extends WPDP_Common {
 
         trace(__METHOD__, "node_offset = " . $node['_ofsSelf'] . ", is_leaf = " . $node['isLeaf']);
 
-        /* Possible traces:
-         * ... -> _treeInsert() [PROTECTED] -> _splitNode()
-         * ... -> _treeInsert() [PROTECTED] -> _splitNode() -> _splitNode() [-> ...]
-         *
-         * So this method needn't and shouldn't to protect the nodes in cache
-         */
+        // Possible traces:
+        // ... -> _treeInsert() [PROTECTED] -> _splitNode()
+        // ... -> _treeInsert() [PROTECTED] -> _splitNode() -> _splitNode() [-> ...]
+        //
+        // So this method needn't and shouldn't to protect the nodes in cache
 
         /*
         $count_elements = count($node['elements']);
@@ -556,11 +552,10 @@ class WPDP_Indexes extends WPDP_Common {
     private function &_splitNode_GetParentNode(array &$node) {
         assert('is_array($node)');
 
-        /* Possible traces:
-         * ... -> _splitNode() [PROTECTED] -> _splitNode_GetParentNode()
-         *
-         * So this method needn't and shouldn't to protect the nodes in cache
-         */
+        // Possible traces:
+        // ... -> _splitNode() [PROTECTED] -> _splitNode_GetParentNode()
+        //
+        // So this method needn't and shouldn't to protect the nodes in cache
 
         // 若当前结点不是根结点，直接获取其父结点并返回
         if ($this->_node_parents[$node['_ofsSelf']] != null) {
@@ -602,11 +597,10 @@ class WPDP_Indexes extends WPDP_Common {
         assert('is_array($node_2)');
         assert('is_array($node_parent)');
 
-        /* Possible traces:
-         * ... -> _splitNode() [PROTECTED] -> _splitNode_Divide()
-         *
-         * So this method needn't and shouldn't to protect the nodes in cache
-         */
+        // Possible traces:
+        // ... -> _splitNode() [PROTECTED] -> _splitNode_Divide()
+        //
+        // So this method needn't and shouldn't to protect the nodes in cache
 
         list ($middle, $node_size_left) = $this->_splitNode_GetMiddle($node, $node_2);
 
@@ -656,11 +650,10 @@ class WPDP_Indexes extends WPDP_Common {
         assert('is_array($node)');
         assert('is_array($node_2)');
 
-        /* Possible traces:
-         * ... -> _splitNode_Divide() [PROTECTED] -> _splitNode_GetMiddle()
-         *
-         * So this method needn't and shouldn't to protect the nodes in cache
-         */
+        // Possible traces:
+        // ... -> _splitNode_Divide() [PROTECTED] -> _splitNode_GetMiddle()
+        //
+        // So this method needn't and shouldn't to protect the nodes in cache
 
         $count_elements = count($node['elements']);
 
@@ -687,29 +680,29 @@ class WPDP_Indexes extends WPDP_Common {
         assert('$middle != -1'); // to be noticed
         assert('$middle != $count_elements'); // to be noticed
 
-        /* 情况 1)
-         *
-         * A A A A B B B B
-         *       ^ middle = 3
-         *
-         * 若中间键和第一个键相同，不用处理
-         *
-         * 情况 2)
-         *
-         * A A A B B B B B
-         *       ^ middle = 3
-         *
-         * 若中间键和第一个键不同，但中间键和其前一个键不同，则也不用处理
-         * 此时底下代码的 while 循环不会起作用
-         *
-         * 情况 3)
-         *
-         * A A B B B B B B
-         *       ^ middle = 3
-         *
-         * 若中间键和第一个键不同，while 循环会尝试找到和中间键相同的最靠左的键
-         * 对于上例，最终结果为 middle = 2
-         */
+        // 情况 1)
+        //
+        // A A A A B B B B
+        //       ^ middle = 3
+        //
+        // 若中间键和第一个键相同，不用处理
+        //
+        // 情况 2)
+        //
+        // A A A B B B B B
+        //       ^ middle = 3
+        //
+        // 若中间键和第一个键不同，但中间键和其前一个键不同，则也不用处理
+        // 此时底下代码的 while 循环不会起作用
+        //
+        // 情况 3)
+        //
+        // A A B B B B B B
+        //       ^ middle = 3
+        //
+        // 若中间键和第一个键不同，while 循环会尝试找到和中间键相同的最靠左的键
+        // 对于上例，最终结果为 middle = 2
+
         if ($node['elements'][$middle]['key'] != $node['elements'][0]['key']) {
             while ($node['elements'][$middle]['key'] == $node['elements'][$middle-1]['key']) {
                 $middle--;
@@ -745,11 +738,10 @@ class WPDP_Indexes extends WPDP_Common {
 
         trace(__METHOD__, "node_offset = " . $node['_ofsSelf']);
 
-        /* Possible traces:
-         * ... -> _splitNode_Divide() [PROTECTED] -> _splitNode_GetPositionInParent()
-         *
-         * So this method needn't and shouldn't to protect the nodes in cache
-         */
+        // Possible traces:
+        // ... -> _splitNode_Divide() [PROTECTED] -> _splitNode_GetPositionInParent()
+        //
+        // So this method needn't and shouldn't to protect the nodes in cache
 
         $offset = $node['_ofsSelf'];
 
@@ -984,18 +976,17 @@ class WPDP_Indexes extends WPDP_Common {
         assert('is_int($offset)');
         assert('is_int($offset_parent) || is_null($offset_parent)');
 
-        /* 只有在 _splitNode_GetParentNode() 方法中，当一个结点不是根结点时，获取其父结点才会使用
-         * $offset_parent = -1 的缺省参数，不设置该结点父结点的偏移量信息。
-         *
-         * index() -- 已对结点进行保护
-         * -> _treeInsert() -- 只有在插入元素后结点溢出时才调用分裂结点的方法
-         *   -> _splitNode() -- 需要调用获取父结点的方法
-         *     -> _splitNode_GetParentNode() -- 该方法只由 _splitNode() 方法调用
-         *
-         * _treeInsert() 方法在进行向 B+ 树中插入元素的操作时是从树的根结点依次向下进行的，中间
-         * 途径结点的父结点偏移量都会被保存下来。而整个过程中涉及到的结点不会被从缓存中除去，所以
-         * 在这种情况下使用该缺省参数是安全的。
-         */
+        // 只有在 _splitNode_GetParentNode() 方法中，当一个结点不是根结点时，获取其父结点才会使用
+        // $offset_parent = -1 的缺省参数，不设置该结点父结点的偏移量信息。
+        //
+        // index() -- 已对结点进行保护
+        // -> _treeInsert() -- 只有在插入元素后结点溢出时才调用分裂结点的方法
+        //   -> _splitNode() -- 需要调用获取父结点的方法
+        //     -> _splitNode_GetParentNode() -- 该方法只由 _splitNode() 方法调用
+        //
+        // _treeInsert() 方法在进行向 B+ 树中插入元素的操作时是从树的根结点依次向下进行的，中间
+        // 途径结点的父结点偏移量都会被保存下来。而整个过程中涉及到的结点不会被从缓存中除去，所以
+        // 在这种情况下使用该缺省参数是安全的。
         assert('($offset_parent != -1) || array_key_exists($offset, $this->_node_parents)');
 
         trace(__METHOD__, "offset = $offset, parent = $offset_parent");
