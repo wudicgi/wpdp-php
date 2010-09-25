@@ -6,7 +6,7 @@ $version_writable = true;
 
 foreach ($files as $file) {
 
-$lines = file('include/' . $file);
+$lines = file('source/' . $file);
 $lines_2 = array();
 
 $last_line_is_removed = false;
@@ -56,7 +56,7 @@ foreach ($lines as $line) {
     $lines_2[] = $line;
 }
 
-file_put_contents('release/' . $file, implode('', $lines_2));
+file_put_contents('builds/' . $file, implode('', $lines_2));
 
 }
 
