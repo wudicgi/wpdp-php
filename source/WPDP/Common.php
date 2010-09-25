@@ -170,8 +170,10 @@ abstract class WPDP_Common {
         $data_section = WPDP_Struct::packSection($section);
 
         $stream->seek(0, WPIO::SEEK_SET);
-        $stream->write($data_header);
-        $stream->write($data_section);
+        $len_written = $stream->write($data_header);
+        WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_header));
+        $len_written = $stream->write($data_section);
+        WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_section));
     }
 
     // }}}
@@ -403,6 +405,7 @@ abstract class WPDP_Common {
         }
 
         $data = $this->_stream->read($length);
+        WPDP_StreamOperationException::checkIsReadExactly(strlen($data), $length);
 
         return $data;
     }
@@ -435,7 +438,8 @@ abstract class WPDP_Common {
             $this->_seek($offset, WPIO::SEEK_SET, $offset_type);
         }
 
-        $this->_stream->write($data);
+        $len_written = $this->_stream->write($data);
+        WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data));
 
         return true;
     }

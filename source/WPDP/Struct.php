@@ -170,13 +170,13 @@ class WPDP_Struct {
             $parts = array();
             $size = 0;
             foreach ($struct['blocks'] as $name => $code) {
-                assert('$code == \'V\' || $code == \'v\' || $code{0} == \'a\' || $code{0} == \'C\'');
+                assert('$code == \'V\' || $code == \'v\' || $code[0] == \'a\' || $code[0] == \'C\'');
                 $parts[] = $code . $name;
                 if ($code == 'V') {
                     $size += 4;
                 } elseif ($code == 'v') {
                     $size += 2;
-                } elseif ($code{0} == 'a' || $code{0} == 'C') {
+                } elseif ($code[0] == 'a' || $code[0] == 'C') {
                     $size += (strlen($code) == 1) ? 1 : (int)substr($code, 1);
                 }
             }
@@ -385,6 +385,7 @@ class WPDP_Struct {
 
         $offset = $stream->tell();
         $data = $stream->read(WPDP::NODE_BLOCK_SIZE);
+        WPDP_StreamOperationException::checkIsReadExactly(strlen($data), WPDP::NODE_BLOCK_SIZE);
 
         // 读取块头部信息
         $head = substr($data, 0, self::$_structs['node']['size']);
@@ -411,7 +412,7 @@ class WPDP_Struct {
         $head_size = self::$_structs['node']['size'];
         while ($n < $object['numElement']) {
             $temp = unpack('vstr/Voffset', substr($blob, $pos_base, 6));
-            $key = substr($blob, $temp['str'] + 1 - $head_size, ord($blob{$temp['str'] - $head_size}));
+            $key = substr($blob, $temp['str'] + 1 - $head_size, ord($blob[$temp['str'] - $head_size]));
             $object['elements'][] = array('key' => $key, 'value' => $temp['offset']);
             $object['_size'] += 2 + 4 + 1 + strlen($key);
             $pos_base += 6;
@@ -437,6 +438,8 @@ class WPDP_Struct {
             $data .= pack($code, $object[$name]);
         }
 
+        assert('strlen($data) == self::$_structs[$type][\'size\']');
+
         return $data;
     }
 
@@ -450,8 +453,9 @@ class WPDP_Struct {
         assert('!isset(self::$_structs[$type][\'blocks\'][\'lenBlock\'])');
 
         $data = $stream->read(self::$_structs[$type]['size']);
+        WPDP_StreamOperationException::checkIsReadExactly(strlen($data), self::$_structs[$type]['size']);
 
-        // 读取各信息
+        // 解析各信息
         $object = unpack(self::$_structs[$type]['format'], $data);
 
         return $object;
@@ -477,6 +481,8 @@ class WPDP_Struct {
         $block_number = (int)ceil($actual_length / $block_size);
         $block_length = $block_size * $block_number;
 
+        assert('$block_length % $block_size == 0');
+
         $object['lenBlock'] = $block_length;
         $object['lenActual'] = $actual_length;
 
@@ -486,6 +492,8 @@ class WPDP_Struct {
         }
         // 追加可变长度区域数据，并补充块长度至 block_length
         $data .= $blob . str_repeat("\x00", $block_length - $actual_length);
+
+        assert('strlen($data) == $block_length');
 
         return $data;
     }
@@ -503,6 +511,7 @@ class WPDP_Struct {
         $block_size = self::_getDefaultBlockSize($type);
 
         $data = $stream->read($block_size);
+        WPDP_StreamOperationException::checkIsReadExactly(strlen($data), $block_size);
 
         // 读取块头部信息
         $head = substr($data, 0, self::$_structs[$type]['size']);
@@ -515,6 +524,7 @@ class WPDP_Struct {
         // 若实际块大小比默认块大小大，读取剩余部分
         if ($object['lenBlock'] > $block_size) {
             $data .= $stream->read($object['lenBlock'] - $block_size);
+            WPDP_StreamOperationException::checkIsReadExactly(strlen($data), $object['lenBlock']);
         }
 
         // 获取可变长度区域的二进制数据
@@ -588,7 +598,7 @@ class WPDP_Struct {
 
             $index = (bool)($temp['flag'] & WPDP::ATTRIBUTE_FLAG_INDEXED);
 
-            $temp = unpack('Clen', $blob{$i});
+            $temp = unpack('Clen', $blob[$i]);
             $i += 1;
             $name = substr($blob, $i, $temp['len']);
             $i += $temp['len'];
@@ -634,7 +644,7 @@ class WPDP_Struct {
 
         $i = 0;
         while ($i < $length) {
-            $temp = unpack('Clen', $blob{$i});
+            $temp = unpack('Clen', $blob[$i]);
             $i += 1;
             $name = substr($blob, $i, $temp['len']);
             $i += $temp['len'];

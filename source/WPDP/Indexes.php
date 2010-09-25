@@ -112,7 +112,7 @@ class WPDP_Indexes extends WPDP_Common {
      *
      * @access private
      *
-     * @var array
+     * @var bool
      */
     private $_node_in_protection = false;
 
@@ -176,7 +176,8 @@ class WPDP_Indexes extends WPDP_Common {
 
         $table = WPDP_Struct::create('index_table');
         $data_table = WPDP_Struct::packIndexTable($table);
-        $stream->write($data_table);
+        $len_written = $stream->write($data_table);
+        WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_table));
 
         $stream->seek(WPDP::HEADER_BLOCK_SIZE, WPIO::SEEK_SET);
         $section = WPDP_Struct::unpackSection($stream);
@@ -184,7 +185,8 @@ class WPDP_Indexes extends WPDP_Common {
 
         $data_section = WPDP_Struct::packSection($section);
         $stream->seek(WPDP::HEADER_BLOCK_SIZE, WPIO::SEEK_SET);
-        $stream->write($data_section);
+        $len_written = $stream->write($data_section);
+        WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_section));
 
         return true;
     }

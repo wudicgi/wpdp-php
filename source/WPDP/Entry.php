@@ -242,8 +242,15 @@ class WPDP_Entry implements ArrayAccess {
         $stream = $this->contentsStream();
 
         $data = '';
+
         while (!$stream->eof()) {
+            $length_before = strlen($data);
+
             $data .= $stream->read($this->_metadata['sizeChunk']);
+
+            if (strlen($data) - $length_before == 0) {
+                throw new WPDP_InternalException("Not reached EOF, but cannot read any more bytes");
+            }
         }
 
         return $data;

@@ -363,14 +363,14 @@ class WPDP_Contents extends WPDP_Common {
                 $offsets .= pack('V', $offset);
             }
             $args->offsetTableOffset = $this->_tell(self::ABSOLUTE);
-            $this->_stream->write($offsets);
+            $this->_write($offsets);
         }
 
         // 若已启用校验，写入分块校验值表
         if ($args->checksum != WPDP::CHECKSUM_NONE) {
             $checksums = implode('', $this->_chunkChecksums);
             $args->checksumTableOffset = $this->_tell(self::ABSOLUTE);
-            $this->_stream->write($checksums);
+            $this->_write($checksums);
         }
     }
 
@@ -424,7 +424,7 @@ class WPDP_Contents extends WPDP_Common {
         $args->compressedLength += $len_compressed;
 
         // 写入该块数据
-        $this->_stream->write($this->_buffer);
+        $this->_write($this->_buffer);
 
         // 累加已写入字节数
         $this->_bytesWritten += $len_compressed;

@@ -519,7 +519,8 @@ class WPDP {
         // 填充内容部分长度到基本块大小的整数倍
         $stream_c->seek(0, WPIO::SEEK_END);
         $padding = self::BASE_BLOCK_SIZE - ($stream_c->tell() % self::BASE_BLOCK_SIZE);
-        $stream_c->write(str_repeat("\x00", $padding));
+        $len_written = $stream_c->write(str_repeat("\x00", $padding));
+        WPDP_StreamOperationException::checkIsWriteExactly($len_written, $padding);
 
         // 追加条目元数据
         $header['ofsMetadata'] = $stream_c->tell();
@@ -537,7 +538,8 @@ class WPDP {
         // 更新头信息
         $stream_c->seek(0, WPIO::SEEK_SET);
         $data_header = WPDP_Struct::packHeader($header);
-        $stream_c->write($data_header);
+        $len_written = $stream_c->write($data_header);
+        WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_header));
 
         return true;
     }
@@ -569,7 +571,8 @@ class WPDP {
         // 将头信息写入到输出文件中
         $stream_out->seek(0, WPIO::SEEK_SET);
         $data_header = WPDP_Struct::packHeader($header);
-        $stream_out->write($data_header);
+        $len_written = $stream_out->write($data_header);
+        WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_header));
 
         // 写入条目元数据
         $header['ofsMetadata'] = $stream_out->tell();
@@ -587,7 +590,8 @@ class WPDP {
         // 更新头信息
         $stream_out->seek(0, WPIO::SEEK_SET);
         $data_header = WPDP_Struct::packHeader($header);
-        $stream_out->write($data_header);
+        $len_written = $stream_out->write($data_header);
+        WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_header));
 
         return true;
     }
@@ -600,6 +604,10 @@ class WPDP {
      * @access public
      */
     public function flush() {
+        if ($this->_mode == self::MODE_READONLY) {
+            return true;
+        }
+
         $this->_contents->flush();
         $this->_metadata->flush();
         $this->_indexes->flush();
@@ -916,7 +924,13 @@ class WPDP {
             }
 
             $buffer = $src->read(min(8192, $length - $didwrite));
-            $dst->write($buffer);
+
+            if (strlen($buffer) == 0) {
+                throw new WPDP_StreamOperationException("Not reached EOF, but cannot read any more bytes");
+            }
+
+            $len_written = $dst->write($buffer);
+            WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($buffer));
 
             $didwrite += strlen($buffer);
         }

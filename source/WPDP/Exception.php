@@ -94,6 +94,39 @@ class WPDP_FileBrokenException extends WPDP_Exception {
 }
 
 /**
+ * WPDP_StreamOperationException
+ *
+ * 流操作异常
+ *
+ * @package WPDP
+ */
+class WPDP_StreamOperationException extends WPDP_Exception {
+    public static function checkIsReadExactly($actual, $expected) {
+        assert('is_int($actual)');
+        assert('is_int($expected)');
+
+        if ($actual == $expected) {
+            return;
+        }
+
+        throw new WPDP_StreamOperationException("Failed to read " . number_format($expected) .
+            " bytes (" . number_format($actual) . " bytes read actually)");
+    }
+
+    public static function checkIsWriteExactly($actual, $expected) {
+        assert('is_int($actual)');
+        assert('is_int($expected)');
+
+        if ($actual == $expected) {
+            return;
+        }
+
+        throw new WPDP_StreamOperationException("Failed to write " . number_format($expected) .
+            " bytes (" . number_format($actual) . " bytes written actually)");
+    }
+}
+
+/**
  * WPDP_SpaceFullException
  *
  * 空间已满异常
