@@ -264,6 +264,30 @@ class WPDP {
 
     // }}}
 
+    // {{{ 内部常量
+
+    /**
+     * 流的能力检查常量
+     *
+     * @global integer _CAPABILITY_READ     检查是否可读
+     * @global integer _CAPABILITY_WRITE    检查是否可写
+     * @global integer _CAPABILITY_SEEK     检查是否可定位
+     */
+    const _CAPABILITY_READ = 0x01;
+    const _CAPABILITY_WRITE = 0x02;
+    const _CAPABILITY_SEEK = 0x04;
+
+    /**
+     * 流的能力检查常量的按位组合
+     *
+     * @global integer _CAPABILITY_READ_SEEK        检查是否可读且可定位
+     * @global integer _CAPABILITY_READ_WRITE_SEEK  检查是否可读、可写且可定位
+     */
+    const _CAPABILITY_READ_SEEK = 0x05; // READ | SEEK = 0x01 | 0x04
+    const _CAPABILITY_READ_WRITE_SEEK = 0x07; // READ | WRITE | SEEK = 0x01 | 0x02 | 0x04
+
+    // }}}
+
     // {{{ properties
 
     /**
@@ -356,20 +380,35 @@ class WPDP {
 
         assert('in_array($mode, array(self::MODE_READONLY, self::MODE_READWRITE))');
 
-        // 检查参数
+        // 检查打开模式参数
         if ($mode != self::MODE_READONLY && $mode != self::MODE_READWRITE) {
             throw new WPDP_InvalidArgumentException("Invalid open mode: $mode");
+        }
+
+        // 检查内容流的可读性与可定位性
+        self::_checkCapabilities($stream_c, self::_CAPABILITY_READ_SEEK);
+
+        // 检查元数据流的可读性与可定位性
+        if (!is_null($stream_m)) {
+            self::_checkCapabilities($stream_m, self::_CAPABILITY_READ_SEEK);
+        }
+
+        // 检查索引流的可读性与可定位性
+        if (!is_null($stream_i)) {
+            self::_checkCapabilities($stream_i, self::_CAPABILITY_READ_SEEK);
         }
 
         // 读取文件的头信息
         $stream_c->seek(0, WPIO::SEEK_SET);
         $header = WPDP_Struct::unpackHeader($stream_c);
 
+        // 检查文件限制类型
         if ($header['limit'] != self::FILE_LIMIT_INT32) {
             throw new WPDP_FileOpenException("This implemention supports only int32 limited file");
         }
 
-        if ($this->_mode == self::MODE_READWRITE) {
+        // 检查打开模式是否和数据堆类型及标志兼容
+        if ($mode == self::MODE_READWRITE) {
             if ($header['type'] == self::FILE_TYPE_COMPOUND) {
                 throw new WPDP_FileOpenException("The specified file is a compound one which is readonly");
             }
@@ -429,6 +468,11 @@ class WPDP {
         assert('is_a($stream_m, \'WPIO_Stream\')');
         assert('is_a($stream_i, \'WPIO_Stream\')');
 
+        // 检查流的可读性、可写性与可定位性
+        self::_checkCapabilities($stream_c, self::_CAPABILITY_READ_WRITE_SEEK);
+        self::_checkCapabilities($stream_m, self::_CAPABILITY_READ_WRITE_SEEK);
+        self::_checkCapabilities($stream_i, self::_CAPABILITY_READ_WRITE_SEEK);
+
         WPDP_Contents::create($stream_c);
         WPDP_Metadata::create($stream_m);
         WPDP_Indexes::create($stream_i);
@@ -457,6 +501,13 @@ class WPDP {
         assert('is_a($stream_c, \'WPIO_Stream\')');
         assert('is_a($stream_m, \'WPIO_Stream\')');
         assert('is_a($stream_i, \'WPIO_Stream\')');
+
+        // 检查内容流的可读性、可写性与可定位性
+        self::_checkCapabilities($stream_c, self::_CAPABILITY_READ_WRITE_SEEK);
+
+        // 检查元数据流、索引流的可读性与可定位性
+        self::_checkCapabilities($stream_m, self::_CAPABILITY_READ_SEEK);
+        self::_checkCapabilities($stream_i, self::_CAPABILITY_READ_SEEK);
 
         // 读取内容文件的头信息
         $header = self::_readHeaderWithCheck($stream_c, self::FILE_TYPE_CONTENTS, 'ofsContents');
@@ -499,6 +550,13 @@ class WPDP {
         assert('is_a($stream_m, \'WPIO_Stream\')');
         assert('is_a($stream_i, \'WPIO_Stream\')');
         assert('is_a($stream_out, \'WPIO_Stream\')');
+
+        // 检查输出流的可读性、可写性与可定位性
+        self::_checkCapabilities($stream_out, self::_CAPABILITY_READ_WRITE_SEEK);
+
+        // 检查元数据流、索引流的可读性与可定位性
+        self::_checkCapabilities($stream_m, self::_CAPABILITY_READ_SEEK);
+        self::_checkCapabilities($stream_i, self::_CAPABILITY_READ_SEEK);
 
         // 读取元数据文件的头信息
         $headerm = self::_readHeaderWithCheck($stream_m, self::FILE_TYPE_METADATA, 'ofsMetadata');
@@ -863,6 +921,37 @@ class WPDP {
             $didwrite += strlen($buffer);
         }
     }
+
+    // {{{ _checkCapabilities()
+
+    /**
+     * 检查流是否具有指定的能力 (可读，可写或可定位)
+     *
+     * @access private
+     *
+     * @param object $stream        流
+     * @param int    $capabilities  按位组合的 _CAPABILITY 常量
+     *
+     * @throws WPDP_InvalidArgumentException
+     */
+    private static function _checkCapabilities(WPIO_Stream $stream, $capabilities) {
+        assert('is_a($stream, \'WPIO_Stream\')');
+        assert('is_int($capabilities)');
+
+        if (($capabilities & self::_CAPABILITY_READ) && !$stream->isReadable()) {
+            throw new WPDP_InvalidArgumentException("The specified stream is not readable");
+        }
+
+        if (($capabilities & self::_CAPABILITY_WRITE) && !$stream->isWritable()) {
+            throw new WPDP_InvalidArgumentException("The specified stream is not writable");
+        }
+
+        if (($capabilities & self::_CAPABILITY_SEEK) && !$stream->isSeekable()) {
+            throw new WPDP_InvalidArgumentException("The specified stream is not seekable");
+        }
+    }
+
+    // }}}
 }
 
 /**
