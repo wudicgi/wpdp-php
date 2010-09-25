@@ -4,9 +4,13 @@ $files = array('WPDP.php', 'WPDP/Common.php', 'WPDP/Contents.php', 'WPDP/Entry.p
 
 $version_writable = true;
 
+if (!file_exists('./builds/full/WPDP')) {
+    mkdir('./builds/full/WPDP');
+}
+
 foreach ($files as $file) {
 
-$lines = file('source/' . $file);
+$lines = file('./source/' . $file);
 $lines_2 = array();
 
 $last_line_is_removed = false;
@@ -56,7 +60,7 @@ foreach ($lines as $line) {
     $lines_2[] = $line;
 }
 
-file_put_contents('builds/full/' . $file, implode('', $lines_2));
+file_put_contents('./builds/full/' . $file, implode('', $lines_2));
 
 }
 

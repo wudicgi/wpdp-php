@@ -2,7 +2,7 @@
 $debug = 1;
 
 $paths_to_add = array(
-    '../../wpio/' . ($debug ? 'source' : 'builds'),
+    '../../wpio/' . ($debug ? 'source' : 'build'),
     '../' . ($debug ? 'source' : 'builds/full')
 );
 set_include_path(implode(PATH_SEPARATOR, $paths_to_add) . PATH_SEPARATOR . get_include_path());
