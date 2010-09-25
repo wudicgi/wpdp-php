@@ -178,7 +178,7 @@ class WPDP_Contents extends WPDP_Common {
             $sizes = array_fill(0, $args->chunkCount, $args->chunkSize);
             $sizes[$args->chunkCount - 1] = $args->compressedLength - $offsets[$args->chunkCount - 1];
         } else {
-            throw new Exception();
+            throw new WPDP_FileBrokenException();
         }
 
         return array($offsets, $sizes);
@@ -195,7 +195,7 @@ class WPDP_Contents extends WPDP_Common {
         if ($offset + $length > $args->originalLength) {
             $length = $args->originalLength - $offset;
             if ($length < 0) {
-                throw new Exception();
+                throw new WPDP_InternalException();
             }
         }
 

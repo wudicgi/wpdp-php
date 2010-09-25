@@ -115,13 +115,13 @@ abstract class WPDP_Common {
         assert('in_array($mode, array(WPDP::MODE_READONLY, WPDP::MODE_READWRITE))');
 
         if (!$stream->isReadable()) {
-            throw new WPDP_FileOpenException("The specified file is not readable");
+            throw new WPDP_FileOpenException("The specified stream is not readable");
         }
         if (!$stream->isSeekable()) {
-            throw new WPDP_FileOpenException("The specified file is not seekable");
+            throw new WPDP_FileOpenException("The specified stream is not seekable");
         }
         if (($mode == WPDP::MODE_READWRITE) && !$stream->isWritable()) {
-            throw new WPDP_FileOpenException("The specified file is not writable");
+            throw new WPDP_FileOpenException("The specified stream is not writable");
         }
 
         $this->_stream = $stream;

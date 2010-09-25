@@ -85,7 +85,7 @@ class WPDP_Entries implements SeekableIterator, Countable, ArrayAccess {
         $this->_position = $position;
 
         if (!$this->valid()) {
-            throw new OutOfBoundsException();
+            throw new WPDP_OutOfBoundsException();
         }
     }
 
@@ -110,11 +110,11 @@ class WPDP_Entries implements SeekableIterator, Countable, ArrayAccess {
     }
 
     public function offsetSet($position, $value) {
-        throw new BadMethodCallException();
+        throw new WPDP_BadMethodCallException();
     }
 
     public function offsetUnset($position) {
-        throw new BadMethodCallException();
+        throw new WPDP_BadMethodCallException();
     }
 
     // private
@@ -293,11 +293,11 @@ class WPDP_Entry implements ArrayAccess {
     }
 
     public function offsetSet($name, $value) {
-        throw new BadMethodCallException();
+        throw new WPDP_BadMethodCallException();
     }
 
     public function offsetUnset($name) {
-        throw new BadMethodCallException();
+        throw new WPDP_BadMethodCallException();
     }
 }
 

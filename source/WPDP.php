@@ -31,10 +31,11 @@
 require_once 'WPIO.php';
 require_once 'WPIO/FileStream.php';
 
+require_once 'WPDP/Exception.php';
 require_once 'WPDP/Struct.php';
 require_once 'WPDP/Entry.php';
-require_once 'WPDP/Common.php';
 
+require_once 'WPDP/Common.php';
 require_once 'WPDP/Contents.php';
 require_once 'WPDP/Metadata.php';
 require_once 'WPDP/Indexes.php';
@@ -357,7 +358,7 @@ class WPDP {
 
         // 检查参数
         if ($mode != self::MODE_READONLY && $mode != self::MODE_READWRITE) {
-            throw new WPDP_InvalidArgumentException("Invalid mode: $mode");
+            throw new WPDP_InvalidArgumentException("Invalid open mode: $mode");
         }
 
         // 读取文件的头信息
@@ -623,7 +624,7 @@ class WPDP {
         if ($type != self::COMPRESSION_NONE &&
             $type != self::COMPRESSION_GZIP &&
             $type != self::COMPRESSION_BZIP2) {
-            throw new WPDP_InvalidArgumentException("Invalid compression type");
+            throw new WPDP_InvalidArgumentException("Invalid compression type: $type");
         }
 
         $this->_compression = $type;
@@ -649,7 +650,7 @@ class WPDP {
             $type != self::CHECKSUM_CRC32 &&
             $type != self::CHECKSUM_MD5 &&
             $type != self::CHECKSUM_SHA1) {
-            throw new WPDP_InvalidArgumentException("Invalid checksum type");
+            throw new WPDP_InvalidArgumentException("Invalid checksum type: $type");
         }
 
         $this->_checksum = $type;
@@ -700,7 +701,7 @@ class WPDP {
         assert('is_array($attributes)');
 
         if ($this->_mode == self::MODE_READONLY) {
-            throw new WPDP_BadMethodCallException();
+            throw new WPDP_BadMethodCallException("The data pile is opened in readonly mode");
         }
 
         $length = strlen($contents);
@@ -733,7 +734,7 @@ class WPDP {
         assert('is_int($length)');
 
         if ($this->_mode == self::MODE_READONLY) {
-            throw new WPDP_BadMethodCallException();
+            throw new WPDP_BadMethodCallException("The data pile is opened in readonly mode");
         }
 
         $this->_args = new WPDP_Entry_Args();
@@ -780,7 +781,7 @@ class WPDP {
         assert('is_string($data)');
 
         if ($this->_mode == self::MODE_READONLY) {
-            throw new WPDP_BadMethodCallException();
+            throw new WPDP_BadMethodCallException("The data pile is opened in readonly mode");
         }
 
         $this->_contents->transfer($data, $this->_args);
@@ -803,7 +804,7 @@ class WPDP {
      */
     public function commit() {
         if ($this->_mode == self::MODE_READONLY) {
-            throw new WPDP_BadMethodCallException();
+            throw new WPDP_BadMethodCallException("The data pile is opened in readonly mode");
         }
 
         $this->_contents->commit($this->_args);
@@ -829,11 +830,12 @@ class WPDP {
         $header = WPDP_Struct::unpackHeader($stream);
 
         if ($header['type'] != $file_type && $header['type'] != self::FILE_TYPE_COMPOUND) {
-            throw new WPDP_Exception();
+            throw new WPDP_FileBrokenException(sprintf("Unexpected file type 0x%02X, expecting 0x%02X or 0x%02X",
+                $header['type'], $file_type, self::FILE_TYPE_COMPOUND));
         }
 
         if ($header[$offset_name] == 0) {
-            throw new WPDP_Exception();
+            throw new WPDP_FileBrokenException("The $offset_name offset in header is null");
         }
 
         return $header;
@@ -851,7 +853,8 @@ class WPDP {
 
         while ($didwrite < $length) {
             if ($src->eof()) {
-                throw new WPDP_Exception();
+                throw new WPDP_FileBrokenException("Unexpected EOF, " . number_format($length - $didwrite) .
+                    " bytes remaining to read");
             }
 
             $buffer = $src->read(min(8192, $length - $didwrite));
@@ -862,6 +865,16 @@ class WPDP {
     }
 }
 
+/**
+ * WPDP_File
+ *
+ * @category   File_Formats
+ * @package    WPDP
+ * @author     Wudi Liu <wudicgi@gmail.com>
+ * @copyright  2009-2010 Wudi Labs
+ * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
+ * @link       http://www.wudilabs.org/
+ */
 class WPDP_File extends WPDP {
     private $_stream_c = null;
     private $_stream_m = null;
@@ -892,7 +905,7 @@ class WPDP_File extends WPDP {
             throw new WPDP_InvalidArgumentException("The filename parameter must be a string");
         }
         if ($mode != self::MODE_READONLY && $mode != self::MODE_READWRITE) {
-            throw new WPDP_InvalidArgumentException("Invalid mode: $mode");
+            throw new WPDP_InvalidArgumentException("Invalid open mode: $mode");
         }
 
         // 检查文件是否可读
@@ -1219,78 +1232,6 @@ class WPDP_Iterator implements Iterator {
     public function valid() {
         return ($this->_meta != false);
     }
-}
-
-/**
- * WPDP_Exception
- *
- * 异常
- */
-class WPDP_Exception extends Exception {
-}
-
-/**
- * WPDP_BadMethodCallException
- *
- * 错误的方法调用异常
- */
-class WPDP_BadMethodCallException extends WPDP_Exception {
-}
-
-/**
- * WPDP_InvalidArgumentException
- *
- * 参数错误异常
- */
-class WPDP_InvalidArgumentException extends WPDP_Exception {
-}
-
-/**
- * WPDP_FileOpenException
- *
- * 文件打开异常
- */
-class WPDP_FileOpenException extends WPDP_Exception {
-}
-
-/**
- * WPDP_FileBrokenException
- *
- * 文件损坏异常
- */
-class WPDP_FileBrokenException extends WPDP_Exception {
-}
-
-/**
- * WPDP_SpaceFullException
- *
- * 空间已满异常
- */
-class WPDP_SpaceFullException extends WPDP_Exception {
-}
-
-/**
- * WPDP_InvalidAttributeNameException
- *
- * 不合法的属性名异常
- */
-class WPDP_InvalidAttributeNameException extends WPDP_Exception {
-}
-
-/**
- * WPDP_InvalidAttributeValueException
- *
- * 不合法的属性值异常
- */
-class WPDP_InvalidAttributeValueException extends WPDP_Exception {
-}
-
-/**
- * WPDP_InternalException
- *
- * 内部异常
- */
-class WPDP_InternalException extends WPDP_Exception {
 }
 
 ?>
