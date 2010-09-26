@@ -412,12 +412,19 @@ class WPDP {
             if ($header['type'] == self::FILE_TYPE_COMPOUND) {
                 throw new WPDP_FileOpenException("The specified file is a compound one which is readonly");
             }
+
             if ($header['type'] == self::FILE_TYPE_LOOKUP) {
                 throw new WPDP_FileOpenException("The specified file is a lookup one which is readonly");
             }
+
             if ($header['flags'] & self::HEADER_FLAG_READONLY) {
                 throw new WPDP_FileOpenException("The specified file has been set to be readonly");
             }
+
+            // 检查流的可写性
+            self::_checkCapabilities($stream_c, self::_CAPABILITY_WRITE);
+            self::_checkCapabilities($stream_m, self::_CAPABILITY_WRITE);
+            self::_checkCapabilities($stream_i, self::_CAPABILITY_WRITE);
         }
 
         $this->_mode = $mode;
@@ -646,7 +653,7 @@ class WPDP {
      *
      * @throws WPDP_InvalidAttributeNameException
      *
-     * @return object WPDP_Entries 对象
+     * @return object 成功时返回 WPDP_Entries 对象，指定属性不存在索引时返回 false
      */
     public function query($attr_name, $attr_value) {
         assert('is_string($attr_name)');
@@ -660,10 +667,11 @@ class WPDP {
             $attr_value = (string)$attr_value;
         }
 
-        try {
-            $offsets = $this->_indexes->find($attr_name, $attr_value);
-        } catch (WPDP_InvalidAttributeNameException $e) {
-            throw $e;
+        $offsets = $this->_indexes->find($attr_name, $attr_value);
+
+        // 若指定属性不存在索引，返回 false
+        if ($offsets === false) {
+            return false;
         }
 
         $entries = new WPDP_Entries($this->_metadata, $this->_contents, $offsets);

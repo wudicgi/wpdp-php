@@ -66,74 +66,11 @@ class WPDP_OutOfBoundsException extends WPDP_Exception {
 /**
  * WPDP_InvalidArgumentException
  *
- * 参数错误异常
+ * 不合法的参数异常
  *
  * @package WPDP
  */
 class WPDP_InvalidArgumentException extends WPDP_Exception {
-}
-
-/**
- * WPDP_FileOpenException
- *
- * 文件打开异常
- *
- * @package WPDP
- */
-class WPDP_FileOpenException extends WPDP_Exception {
-}
-
-/**
- * WPDP_FileBrokenException
- *
- * 文件损坏异常
- *
- * @package WPDP
- */
-class WPDP_FileBrokenException extends WPDP_Exception {
-}
-
-/**
- * WPDP_StreamOperationException
- *
- * 流操作异常
- *
- * @package WPDP
- */
-class WPDP_StreamOperationException extends WPDP_Exception {
-    public static function checkIsReadExactly($actual, $expected) {
-        assert('is_int($actual)');
-        assert('is_int($expected)');
-
-        if ($actual == $expected) {
-            return;
-        }
-
-        throw new WPDP_StreamOperationException("Failed to read " . number_format($expected) .
-            " bytes (" . number_format($actual) . " bytes read actually)");
-    }
-
-    public static function checkIsWriteExactly($actual, $expected) {
-        assert('is_int($actual)');
-        assert('is_int($expected)');
-
-        if ($actual == $expected) {
-            return;
-        }
-
-        throw new WPDP_StreamOperationException("Failed to write " . number_format($expected) .
-            " bytes (" . number_format($actual) . " bytes written actually)");
-    }
-}
-
-/**
- * WPDP_SpaceFullException
- *
- * 空间已满异常
- *
- * @package WPDP
- */
-class WPDP_SpaceFullException extends WPDP_Exception {
 }
 
 /**
@@ -157,13 +94,81 @@ class WPDP_InvalidAttributeValueException extends WPDP_Exception {
 }
 
 /**
+ * WPDP_FileOpenException
+ *
+ * 文件打开异常
+ *
+ * @package WPDP
+ */
+class WPDP_FileOpenException extends WPDP_Exception {
+}
+
+/**
+ * WPDP_SpaceFullException
+ *
+ * 空间已满异常
+ *
+ * @package WPDP
+ */
+class WPDP_SpaceFullException extends WPDP_Exception {
+}
+
+/**
  * WPDP_InternalException
  *
  * 内部异常
  *
- * @package WPDP
+ * @category   File_Formats
+ * @package    WPDP
+ * @author     Wudi Liu <wudicgi@gmail.com>
+ * @copyright  2009-2010 Wudi Labs
+ * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
+ * @link       http://www.wudilabs.org/
  */
 class WPDP_InternalException extends WPDP_Exception {
+}
+
+/**
+ * WPDP_FileBrokenException
+ *
+ * 文件损坏异常
+ *
+ * @package WPDP
+ */
+class WPDP_FileBrokenException extends WPDP_InternalException {
+}
+
+/**
+ * WPDP_StreamOperationException
+ *
+ * 流操作异常
+ *
+ * @package WPDP
+ */
+class WPDP_StreamOperationException extends WPDP_InternalException {
+    public static function checkIsReadExactly($actual, $expected) {
+        assert('is_int($actual)');
+        assert('is_int($expected)');
+
+        if ($actual == $expected) {
+            return;
+        }
+
+        throw new WPDP_StreamOperationException("Failed to read " . number_format($expected) .
+            " bytes (" . number_format($actual) . " bytes read actually)");
+    }
+
+    public static function checkIsWriteExactly($actual, $expected) {
+        assert('is_int($actual)');
+        assert('is_int($expected)');
+
+        if ($actual == $expected) {
+            return;
+        }
+
+        throw new WPDP_StreamOperationException("Failed to write " . number_format($expected) .
+            " bytes (" . number_format($actual) . " bytes written actually)");
+    }
 }
 
 ?>

@@ -136,6 +136,8 @@ class WPDP_Indexes extends WPDP_Common {
      *
      * @param object  $stream   文件操作对象
      * @param integer $mode     打开模式
+     *
+     * @throws WPDP_InternalException
      */
     function __construct(WPIO_Stream $stream, $mode) {
         assert('is_a($stream, \'WPIO_Stream\')');
@@ -166,7 +168,6 @@ class WPDP_Indexes extends WPDP_Common {
      *
      * @param object $stream    文件操作对象
      *
-     * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
     public static function create(WPIO_Stream $stream) {
@@ -304,9 +305,10 @@ class WPDP_Indexes extends WPDP_Common {
      * @param string $attr_name     属性名
      * @param string $attr_value    属性值
      *
-     * @throws WPDP_InvalidAttributeNameException
+     * @return array 返回所有找到的条目元数据的偏移量，未找到任何条目时返回空数组，
+     *               指定属性名不存在索引时返回 false
      *
-     * @return array 所有找到的条目元数据的偏移量 (未找到时返回空数组)
+     * @throws WPDP_InternalException
      */
     public function find($attr_name, $attr_value) {
         assert('is_string($attr_name)');
@@ -317,8 +319,16 @@ class WPDP_Indexes extends WPDP_Common {
         //
         // So this method NEED to protect the nodes in cache
 
+        if (!is_string($attr_name)) {
+            throw new WPDP_InternalException("The attr_name parameter must be a string");
+        }
+
+        if (!is_string($attr_value)) {
+            throw new WPDP_InternalException("The attr_value parameter must be a string");
+        }
+
         if (!array_key_exists($attr_name, $this->_table['indexes'])) {
-            throw new WPDP_InvalidAttributeNameException("Attribute $attr_name has no index");
+            return false;
         }
 
         $this->_beginNodeProtection();

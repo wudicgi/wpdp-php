@@ -49,7 +49,6 @@ class WPDP_Metadata extends WPDP_Common {
      * @param object  $stream   文件操作对象
      * @param integer $mode     打开模式
      *
-     * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
     function __construct(WPIO_Stream $stream, $mode) {
@@ -74,7 +73,6 @@ class WPDP_Metadata extends WPDP_Common {
      *
      * @param object $stream    文件操作对象
      *
-     * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
     public static function create(WPIO_Stream $stream) {
@@ -113,6 +111,10 @@ class WPDP_Metadata extends WPDP_Common {
         assert('is_int($offset)');
 
         trace(__METHOD__, "offset = $offset");
+
+        if ($offset < 0) {
+            throw new WPDP_InternalException("The offset parameter cannot be negative");
+        }
 
         $this->_seek($offset, WPIO::SEEK_SET, self::RELATIVE);
         $metadata = WPDP_Struct::unpackMetadata($this->_stream);

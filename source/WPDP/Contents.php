@@ -93,7 +93,6 @@ class WPDP_Contents extends WPDP_Common {
      * @param object  $stream   文件操作对象
      * @param integer $mode     打开模式
      *
-     * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
     function __construct(WPIO_Stream $stream, $mode) {
@@ -118,7 +117,6 @@ class WPDP_Contents extends WPDP_Common {
      *
      * @param object $stream    文件操作对象
      *
-     * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
     public static function create(WPIO_Stream $stream) {
@@ -191,12 +189,28 @@ class WPDP_Contents extends WPDP_Common {
 
         trace(__METHOD__, "offset = " . $offset . ", file length = " . $args->originalLength . ", length to read = " . $length);
 
-        // to be noticed
+        if (!is_int($offset)) {
+            throw new WPDP_InternalException("The offset parameter must be an integer");
+        }
+
+        if (!is_int($length)) {
+            throw new WPDP_InternalException("The length parameter must be an integer");
+        }
+
+        if ($offset < 0) {
+            throw new WPDP_InternalException("The offset parameter cannot be negative");
+        }
+
+        if ($offset > $args->originalLength) {
+            throw new WPDP_InternalException("The offset parameter exceeds EOF");
+        }
+
+        if ($length < 0) {
+            throw new WPDP_InternalException("The length parameter cannot be negative");
+        }
+
         if ($offset + $length > $args->originalLength) {
             $length = $args->originalLength - $offset;
-            if ($length < 0) {
-                throw new WPDP_InternalException();
-            }
         }
 
         trace(__METHOD__, "offset = " . $offset . ", file length = " . $args->originalLength . ", length to read = " . $length);
@@ -274,6 +288,14 @@ class WPDP_Contents extends WPDP_Common {
         assert('is_int($length)');
         assert('is_a($args, \'WPDP_Entry_Args\')');
 
+        if (!is_int($length)) {
+            throw new WPDP_InternalException("The length parameter must be an integer");
+        }
+
+        if ($length < 0) {
+            throw new WPDP_InternalException("The length parameter cannot be negative");
+        }
+
         $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
         $offset_begin = $this->_tell(self::ABSOLUTE);
 
@@ -315,12 +337,16 @@ class WPDP_Contents extends WPDP_Common {
         assert('is_string($data)');
         assert('is_a($args, \'WPDP_Entry_Args\')');
 
+        // $data 即使不是字符串也会在 strlen() 和 substr() 函数的处理过程中自动转换，
+        // 没有潜在的风险，因此此处不进行类型检测
+
         $pos = 0;
         $len = strlen($data);
         while ($pos < $len) {
             $tmp = min($len - $pos, $args->chunkSize - strlen($this->_buffer));
             trace(__METHOD__, "\$pos = $pos, \$tmp = $tmp\n");
             $this->_buffer .= substr($data, $pos, $tmp);
+            assert('strlen($this->_buffer) <= $args->chunkSize');
             if (strlen($this->_buffer) == $args->chunkSize) {
                 // 已填满一个 chunk，写入缓冲区数据
                 $this->_writeBuffer($args);

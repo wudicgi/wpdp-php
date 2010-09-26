@@ -103,7 +103,6 @@ abstract class WPDP_Common {
      * @param object  $stream   文件操作对象
      * @param integer $mode     打开模式
      *
-     * @throws WPDP_FileOpenException
      * @throws WPDP_InternalException
      */
     function __construct($type, WPIO_Stream $stream, $mode) {
@@ -114,14 +113,26 @@ abstract class WPDP_Common {
         assert('in_array($type, array(WPDP::SECTION_TYPE_CONTENTS, WPDP::SECTION_TYPE_METADATA, WPDP::SECTION_TYPE_INDEXES))');
         assert('in_array($mode, array(WPDP::MODE_READONLY, WPDP::MODE_READWRITE))');
 
+        // 检查区域类型参数
+        if ($type != WPDP::SECTION_TYPE_CONTENTS && $type != WPDP::SECTION_TYPE_METADATA
+            && $type != WPDP::SECTION_TYPE_INDEXES) {
+            throw new WPDP_InternalException("Invalid section type: $type");
+        }
+
+        // 检查打开模式参数
+        if ($mode != WPDP::MODE_READONLY && $mode != WPDP::MODE_READWRITE) {
+            throw new WPDP_InternalException("Invalid open mode: $mode");
+        }
+
+        // 检查内容流的可读性、可定位性与可写性
         if (!$stream->isReadable()) {
-            throw new WPDP_FileOpenException("The specified stream is not readable");
+            throw new WPDP_InternalException("The specified stream is not readable");
         }
         if (!$stream->isSeekable()) {
-            throw new WPDP_FileOpenException("The specified stream is not seekable");
+            throw new WPDP_InternalException("The specified stream is not seekable");
         }
         if (($mode == WPDP::MODE_READWRITE) && !$stream->isWritable()) {
-            throw new WPDP_FileOpenException("The specified stream is not writable");
+            throw new WPDP_InternalException("The specified stream is not writable");
         }
 
         $this->_stream = $stream;
@@ -156,6 +167,29 @@ abstract class WPDP_Common {
 
         assert('in_array($file_type, array(WPDP::FILE_TYPE_CONTENTS, WPDP::FILE_TYPE_METADATA, WPDP::FILE_TYPE_INDEXES))');
         assert('in_array($section_type, array(WPDP::SECTION_TYPE_CONTENTS, WPDP::SECTION_TYPE_METADATA, WPDP::SECTION_TYPE_INDEXES))');
+
+        // 检查文件类型参数
+        if ($file_type != WPDP::FILE_TYPE_CONTENTS && $file_type != WPDP::FILE_TYPE_METADATA
+            && $file_type != WPDP::FILE_TYPE_INDEXES) {
+            throw new WPDP_InternalException("Invalid file type: $file_type");
+        }
+
+        // 检查区域类型参数
+        if ($section_type != WPDP::SECTION_TYPE_CONTENTS && $section_type != WPDP::SECTION_TYPE_METADATA
+            && $section_type != WPDP::SECTION_TYPE_INDEXES) {
+            throw new WPDP_InternalException("Invalid section type: $section_type");
+        }
+
+        // 检查内容流的可读性、可写性与可定位性
+        if (!$stream->isReadable()) {
+            throw new WPDP_InternalException("The specified stream is not readable");
+        }
+        if (!$stream->isSeekable()) {
+            throw new WPDP_InternalException("The specified stream is not seekable");
+        }
+        if (!$stream->isWritable()) {
+            throw new WPDP_InternalException("The specified stream is not writable");
+        }
 
         $section_offset_name = self::_getSectionOffsetName($section_type);
 

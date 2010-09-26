@@ -110,11 +110,11 @@ class WPDP_Entries implements SeekableIterator, Countable, ArrayAccess {
     }
 
     public function offsetSet($position, $value) {
-        throw new WPDP_BadMethodCallException();
+        trigger_error("The WPDP_Entries object cannot be modified", E_USER_NOTICE);
     }
 
     public function offsetUnset($position) {
-        throw new WPDP_BadMethodCallException();
+        trigger_error("The WPDP_Entries object cannot be modified", E_USER_NOTICE);
     }
 
     // private
@@ -300,11 +300,11 @@ class WPDP_Entry implements ArrayAccess {
     }
 
     public function offsetSet($name, $value) {
-        throw new WPDP_BadMethodCallException();
+        trigger_error("The WPDP_Entry object cannot be modified", E_USER_NOTICE);
     }
 
     public function offsetUnset($name) {
-        throw new WPDP_BadMethodCallException();
+        trigger_error("The WPDP_Entry object cannot be modified", E_USER_NOTICE);
     }
 }
 
@@ -449,6 +449,10 @@ class WPDP_Entry_Attributes implements Iterator, Countable, ArrayAccess {
 
     public function isIndexed($name) {
         assert('is_string($name)');
+
+        if (!is_string($name)) {
+            $name = (string)$name;
+        }
 
         return (bool)$this->_attributes[$name]['index'];
     }
