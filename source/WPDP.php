@@ -40,8 +40,6 @@ require_once 'WPDP/Contents.php';
 require_once 'WPDP/Metadata.php';
 require_once 'WPDP/Indexes.php';
 
-WPDP_Struct::init();
-
 /**
  * WPDP
  *
@@ -317,6 +315,8 @@ class WPDP {
      */
     private $_indexes = null;
 
+#ifndef BUILD_READONLY
+
     /**
      * 压缩类型
      *
@@ -325,6 +325,10 @@ class WPDP {
      * @var integer
      */
     private $_compression = self::COMPRESSION_NONE;
+
+#endif
+
+#ifndef BUILD_READONLY
 
     /**
      * 校验类型
@@ -335,6 +339,10 @@ class WPDP {
      */
     private $_checksum = self::CHECKSUM_NONE;
 
+#endif
+
+#ifndef BUILD_READONLY
+
     /**
      * 索引的属性名
      *
@@ -343,6 +351,8 @@ class WPDP {
      * @var integer
      */
     private $_attribute_indexes = array();
+
+#endif
 
     /**
      * 数据堆打开模式
@@ -385,6 +395,14 @@ class WPDP {
             throw new WPDP_InvalidArgumentException("Invalid open mode: $mode");
         }
 
+#ifdef BUILD_READONLY
+/*
+        if ($mode != self::MODE_READONLY) {
+            throw new WPDP_InvalidArgumentException("This is a readonly build of WPDP");
+        }
+*/
+#endif
+
         // 检查内容流的可读性与可定位性
         self::_checkCapabilities($stream_c, self::_CAPABILITY_READ_SEEK);
 
@@ -407,6 +425,8 @@ class WPDP {
             throw new WPDP_FileOpenException("This implemention supports only int32 limited file");
         }
 
+#ifndef BUILD_READONLY
+
         // 检查打开模式是否和数据堆类型及标志兼容
         if ($mode == self::MODE_READWRITE) {
             if ($header['type'] == self::FILE_TYPE_COMPOUND) {
@@ -426,6 +446,8 @@ class WPDP {
             self::_checkCapabilities($stream_m, self::_CAPABILITY_WRITE);
             self::_checkCapabilities($stream_i, self::_CAPABILITY_WRITE);
         }
+
+#endif
 
         $this->_mode = $mode;
 
@@ -453,7 +475,7 @@ class WPDP {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ create()
 
@@ -488,6 +510,10 @@ class WPDP {
     }
 
     // }}}
+
+#endif
+
+#ifndef BUILD_READONLY
 
     // {{{ compound()
 
@@ -555,6 +581,8 @@ class WPDP {
 
 #endif
 
+#ifndef BUILD_READONLY
+
     public static function makeLookup(WPIO_Stream $stream_m, WPIO_Stream $stream_i, WPIO_Stream $stream_out) {
         assert('is_a($stream_m, \'WPIO_Stream\')');
         assert('is_a($stream_i, \'WPIO_Stream\')');
@@ -603,6 +631,10 @@ class WPDP {
         return true;
     }
 
+#endif
+
+#ifndef BUILD_READONLY
+
     // {{{ flush()
 
     /**
@@ -612,7 +644,7 @@ class WPDP {
      */
     public function flush() {
         if ($this->_mode == self::MODE_READONLY) {
-            return true;
+            return false;
         }
 
         $this->_contents->flush();
@@ -623,6 +655,8 @@ class WPDP {
     }
 
     // }}}
+
+#endif
 
     // {{{ iterator()
 
@@ -681,6 +715,8 @@ class WPDP {
 
     // }}}
 
+#ifndef BUILD_READONLY
+
     // {{{ setCompression()
 
     /**
@@ -695,8 +731,7 @@ class WPDP {
 
         assert('in_array($type, array(self::COMPRESSION_NONE, self::COMPRESSION_GZIP, self::COMPRESSION_BZIP2))');
 
-        if ($type != self::COMPRESSION_NONE &&
-            $type != self::COMPRESSION_GZIP &&
+        if ($type != self::COMPRESSION_NONE && $type != self::COMPRESSION_GZIP &&
             $type != self::COMPRESSION_BZIP2) {
             throw new WPDP_InvalidArgumentException("Invalid compression type: $type");
         }
@@ -705,6 +740,10 @@ class WPDP {
     }
 
     // }}}
+
+#endif
+
+#ifndef BUILD_READONLY
 
     // {{{ setChecksum()
 
@@ -720,10 +759,8 @@ class WPDP {
 
         assert('in_array($type, array(self::CHECKSUM_NONE, self::CHECKSUM_CRC32, self::CHECKSUM_MD5, self::CHECKSUM_SHA1))');
 
-        if ($type != self::CHECKSUM_NONE &&
-            $type != self::CHECKSUM_CRC32 &&
-            $type != self::CHECKSUM_MD5 &&
-            $type != self::CHECKSUM_SHA1) {
+        if ($type != self::CHECKSUM_NONE && $type != self::CHECKSUM_CRC32 &&
+            $type != self::CHECKSUM_MD5 && $type != self::CHECKSUM_SHA1) {
             throw new WPDP_InvalidArgumentException("Invalid checksum type: $type");
         }
 
@@ -731,6 +768,10 @@ class WPDP {
     }
 
     // }}}
+
+#endif
+
+#ifndef BUILD_READONLY
 
     // {{{ setIndexedAttributeNames()
 
@@ -756,7 +797,9 @@ class WPDP {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#endif
+
+#ifndef BUILD_READONLY
 
     // {{{ add()
 
@@ -789,7 +832,7 @@ class WPDP {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ begin()
 
@@ -840,7 +883,7 @@ class WPDP {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ transfer()
 
@@ -865,7 +908,7 @@ class WPDP {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ commit()
 
@@ -915,6 +958,8 @@ class WPDP {
         return $header;
     }
 
+#ifndef BUILD_READONLY
+
     private static function _streamCopy(WPIO_Stream $dst, WPIO_Stream $src, $offset, $length) {
         assert('is_a($dst, \'WPIO_Stream\')');
         assert('is_a($src, \'WPIO_Stream\')');
@@ -944,6 +989,8 @@ class WPDP {
         }
     }
 
+#endif
+
     // {{{ _checkCapabilities()
 
     /**
@@ -951,8 +998,8 @@ class WPDP {
      *
      * @access private
      *
-     * @param object $stream        流
-     * @param int    $capabilities  按位组合的 _CAPABILITY 常量
+     * @param object  $stream       流
+     * @param integer $capabilities 按位组合的 _CAPABILITY 常量
      *
      * @throws WPDP_InvalidArgumentException
      */
@@ -1011,13 +1058,22 @@ class WPDP_File extends WPDP {
 
         assert('in_array($mode, array(self::MODE_READONLY, self::MODE_READWRITE))');
 
-        // 检查参数
         if (!is_string($filename)) {
-            throw new WPDP_InvalidArgumentException("The filename parameter must be a string");
+            $filename = (string)$filename;
         }
+
+        // 检查打开模式参数
         if ($mode != self::MODE_READONLY && $mode != self::MODE_READWRITE) {
             throw new WPDP_InvalidArgumentException("Invalid open mode: $mode");
         }
+
+#ifdef BUILD_READONLY
+/*
+        if ($mode != self::MODE_READONLY) {
+            throw new WPDP_InvalidArgumentException("This is a readonly build of WPDP");
+        }
+*/
+#endif
 
         // 检查文件是否可读
         self::_checkReadable($filename);
@@ -1052,7 +1108,9 @@ class WPDP_File extends WPDP {
      * @access public
      */
     public function close() {
+#ifndef BUILD_READONLY
         $this->flush();
+#endif
 
         if (!is_null($this->_stream_c)) {
             $this->_stream_c->close();
@@ -1069,7 +1127,7 @@ class WPDP_File extends WPDP {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ create()
 
@@ -1109,6 +1167,10 @@ class WPDP_File extends WPDP {
     }
 
     // }}}
+
+#endif
+
+#ifndef BUILD_READONLY
 
     // {{{ compound()
 
@@ -1154,6 +1216,8 @@ class WPDP_File extends WPDP {
 
 #endif
 
+#ifndef BUILD_READONLY
+
     public static function makeLookup($filename, $filename_out) {
         assert('is_string($filename)');
         assert('is_string($filename_out)');
@@ -1175,6 +1239,8 @@ class WPDP_File extends WPDP {
         $stream_c->close();
         $stream_out->close();
     }
+
+#endif
 
     // {{{ _getFilenames()
 
@@ -1233,7 +1299,7 @@ class WPDP_File extends WPDP {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _checkWritable()
 
@@ -1258,7 +1324,7 @@ class WPDP_File extends WPDP {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _checkCreatable()
 

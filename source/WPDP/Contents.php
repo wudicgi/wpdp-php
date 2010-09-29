@@ -39,18 +39,22 @@
  * @link       http://www.wudilabs.org/
  */
 class WPDP_Contents extends WPDP_Common {
-#ifdef VERSION_WRITABLE
-
     // {{{ properties
 
+#ifndef BUILD_READONLY
+
     /**
-     * 缓冲区
+     * 写入缓冲区
      *
      * @access private
      *
      * @var string
      */
     private $_buffer;
+
+#endif
+
+#ifndef BUILD_READONLY
 
     /**
      * 实际已写入数据字节数
@@ -61,6 +65,10 @@ class WPDP_Contents extends WPDP_Common {
      */
     private $_bytesWritten;
 
+#endif
+
+#ifndef BUILD_READONLY
+
     /**
      * 内容分块偏移量表
      *
@@ -69,6 +77,10 @@ class WPDP_Contents extends WPDP_Common {
      * @var array
      */
     private $_chunkOffsets;
+
+#endif
+
+#ifndef BUILD_READONLY
 
     /**
      * 内容分块校验值表
@@ -79,9 +91,9 @@ class WPDP_Contents extends WPDP_Common {
      */
     private $_chunkChecksums;
 
-    // }}}
-
 #endif
+
+    // }}}
 
     // {{{ constructor
 
@@ -106,7 +118,7 @@ class WPDP_Contents extends WPDP_Common {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ create()
 
@@ -131,7 +143,7 @@ class WPDP_Contents extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ flush()
 
@@ -272,7 +284,7 @@ class WPDP_Contents extends WPDP_Common {
 */
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ begin()
 
@@ -321,7 +333,7 @@ class WPDP_Contents extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ transfer()
 
@@ -359,7 +371,7 @@ class WPDP_Contents extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ commit()
 
@@ -404,7 +416,7 @@ class WPDP_Contents extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _writeBuffer()
 
@@ -495,6 +507,8 @@ class WPDP_Contents extends WPDP_Common {
         return $checksum;
     }
 
+#ifndef BUILD_READONLY
+
     private static function _compress(&$data, $type) {
         assert('is_string($data)');
         assert('is_int($type)');
@@ -517,6 +531,8 @@ class WPDP_Contents extends WPDP_Common {
             // DEBUG: END ASSERT
         }
     }
+
+#endif
 
     private static function _decompress(&$data, $type) {
         assert('is_string($data)');
@@ -541,7 +557,7 @@ class WPDP_Contents extends WPDP_Common {
         }
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _computeChunkSize()
 

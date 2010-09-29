@@ -62,7 +62,7 @@ class WPDP_Metadata extends WPDP_Common {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ create()
 
@@ -87,7 +87,7 @@ class WPDP_Metadata extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ flush()
 
@@ -149,7 +149,7 @@ class WPDP_Metadata extends WPDP_Common {
         return $metadata;
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     public function add(WPDP_Entry_Args $args) {
         assert('is_a($args, \'WPDP_Entry_Args\')');
@@ -180,7 +180,7 @@ class WPDP_Metadata extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _writeMetadata()
 

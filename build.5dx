@@ -2,68 +2,283 @@
 $files = array('WPDP.php', 'WPDP/Common.php', 'WPDP/Contents.php', 'WPDP/Entry.php',
 'WPDP/Exception.php', 'WPDP/Indexes.php', 'WPDP/Metadata.php', 'WPDP/Struct.php');
 
-$version_writable = true;
+// $strip_dc = $strip_doc_comments, $strip_gc = $strip_general_comments
 
-if (!file_exists('./builds/full/WPDP')) {
-    mkdir('./builds/full/WPDP');
-}
+$versions = array(
+    //                    $readonly,  $strip_dc,  $strip_gc, $amalgamation)
+    'full'      =>  array(  false,      false,      false,      false),
+    'pear'      =>  array(  false,      false,      true,       false),
+    'compact'   =>  array(  false,      true,       true,       true),
+    'readonly'  =>  array(  true,       true,       true,       true),
+);
 
-foreach ($files as $file) {
+define('NORMAL', 0);
+define('REMOVED', 1);
+define('BLOCK_BEGIN', 2);
+define('BLOCK_END', 3);
 
-$lines = file('./source/' . $file);
-$lines_2 = array();
+foreach ($versions as $version_name => $version) {
+    list ($readonly, $strip_dc, $strip_gc, $amalgamation) = $version;
 
-$last_line_is_removed = false;
-$in_block_version_writable = false;
-foreach ($lines as $line) {
-    /*
-    if (!$version_writable) {
-        $line = str_replace('WPDP', 'WPDP_Readonly', $line);
-    }
-    */
-    $temp = trim($line);
-    if (substr($temp, 0, 17) == 'trace(__METHOD__,' ||
-        substr($temp, 0, 6) == 'debug(' ||
-        substr($temp, 0, 7) == 'assert(') {
-        $last_line_is_removed = true;
-        continue;
-    }
-    if (substr($temp, 0, 2) == '//' &&
-        strpos($temp, '{{{') === false &&
-        strpos($temp, '}}}') === false) {
-        $last_line_is_removed = true;
-        continue;
-    }
-    if ($version_writable) {
-        if ($temp == '#ifdef VERSION_WRITABLE' || $temp == '#endif') {
-            $last_line_is_removed = true;
-            continue;
-        }
-    } else {
-        if ($in_block_version_writable) {
-            if ($temp == '#endif') {
-                $in_block_version_writable = false;
-                $last_line_is_removed = true;
+    if ($amalgamation) {
+        $main = '';
+
+        foreach ($files as $n => $file) {
+            $contents = file_get_contents("./source/$file");
+            $eol = process_eol($contents);
+            preprocess($contents, $readonly);
+            strip_comments($contents, $strip_dc, $strip_gc, ($n == 0));
+
+            if ($n == 0) {
+                restore_eol($contents, $eol);
+                $main = $contents;
+            } else {
+                strip_php_tag($contents);
+                restore_eol($contents, $eol);
+                $contents = "// Included File: $file$eol$eol" . trim($contents) . "$eol$eol";
+                $main = str_replace("require_once '$file';$eol$eol", "require_once '$file';$eol", $main);
+                $main = str_replace("require_once '$file';$eol", $contents, $main);
             }
-            continue;
-        } elseif ($temp == '#ifdef VERSION_WRITABLE') {
-            $in_block_version_writable = true;
-            continue;
+        }
+
+        file_put_contents("./builds/$version_name/$files[0]", $main);
+    } else {
+        if (!file_exists("./builds/$version_name/WPDP")) {
+            mkdir("./builds/$version_name/WPDP");
+        }
+
+        foreach ($files as $file) {
+            $contents = file_get_contents("./source/$file");
+            $eol = process_eol($contents);
+            preprocess($contents, $readonly);
+            strip_comments($contents, $strip_dc, $strip_gc, true);
+            restore_eol($contents, $eol);
+
+            file_put_contents("./builds/$version_name/$file", $contents);
         }
     }
-    if ($last_line_is_removed) {
-        $last_line_is_removed = false;
-        if (empty($temp)) {
-            continue;
-        }
-    }
-    $lines_2[] = $line;
-}
-
-file_put_contents('./builds/full/' . $file, implode('', $lines_2));
-
 }
 
 echo 'OK';
+
+function process_eol(&$contents) {
+    $eol = (strpos($contents, "\r\n") !== false) ? "\r\n" : "\n";
+    if ($eol != "\n") {
+        $contents = str_replace($eol, "\n", $contents);
+    }
+    return $eol;
+}
+
+function restore_eol(&$contents, $eol) {
+    if ($eol != "\n") {
+        $contents = str_replace("\n", $eol, $contents);
+    }
+}
+
+function preprocess(&$contents, $readonly = false) {
+    $lines = explode("\n", $contents);
+    if (empty($lines[count($lines) - 1])) {
+        array_pop($lines);
+    }
+
+    $lines_target = array();
+
+    $last_line_status = NORMAL;
+    $in_block_writable = false;
+    $in_block_readonly = false;
+
+    $lines_count = count($lines);
+    for ($n = 0; $n < $lines_count; $n++) {
+        $line = $lines[$n];
+        $temp = trim($line);
+
+        // 去除 trace(), assert() 的调用
+        if (substr($temp, 0, 6) == 'trace(' ||
+            substr($temp, 0, 7) == 'assert(') {
+            $last_line_status = REMOVED;
+            continue;
+        }
+
+        if ($in_block_writable) {
+            if ($temp == '#endif') {
+                $in_block_writable = false;
+                $last_line_status = BLOCK_END;
+                continue;
+            } elseif ($readonly) {
+                continue;
+            }
+        } elseif ($in_block_readonly) {
+            if ($temp == '#endif' && trim($lines[$n - 1]) == '*/') {
+                if ($readonly) {
+                    array_pop($lines_target); // pops out '*/'
+                }
+                $in_block_readonly = false;
+                $last_line_status = BLOCK_END;
+                continue;
+            } elseif (!$readonly) {
+                continue;
+            }
+        } elseif ($temp == '#ifndef BUILD_READONLY') {
+            if ($in_block_readonly) {
+                exit("Fatal error: block conflicts in $file on line $n\n");
+            }
+            $in_block_writable = true;
+            $last_line_status = BLOCK_BEGIN;
+            continue;
+        } elseif ($temp == '#ifdef BUILD_READONLY'
+                  && trim($lines[$n + 1]) == '/*') {
+            if ($in_block_writable) {
+                exit("Fatal error: block conflicts in $file on line $n\n");
+            }
+            $n++; // skips '/*'
+            $in_block_readonly = true;
+            $last_line_status = BLOCK_BEGIN;
+            continue;
+        }
+
+        $ttt = $last_line_status;
+
+        if ($last_line_status == REMOVED) {
+            $last_line_status = NORMAL;
+            if (empty($temp)) {
+                continue;
+            }
+        } elseif ($last_line_status == BLOCK_BEGIN) {
+            $last_line_status = NORMAL;
+            if (empty($temp)) {
+                continue;
+            }
+        } elseif ($last_line_status == BLOCK_END) {
+            $last_line_status = NORMAL;
+            if (strlen(trim($lines_target[count($lines_target)-1])) == 0) {
+                array_pop($lines_target);
+            }
+        }
+
+        $lines_target[] = rtrim($line) . "\n";
+    }
+
+    $contents = implode('', $lines_target);
+}
+
+function strip_comments(&$contents, $strip_dc = true, $strip_gc = true, $reserve_first_dc = false) {
+    $tokens = token_get_all($contents);
+    $count_tokens = count($tokens);
+
+    $line_number = 0;
+    $line_effective = false;
+
+    // 从第 2 个 token 开始处理
+    for ($i = 1; $i < $count_tokens; $i++) {
+        if (is_string($tokens[$i])) {
+            continue;
+        }
+
+        if ($tokens[$i][2] != $line_number) {
+            $line_number = $tokens[$i][2];
+            $line_effective = false;
+        }
+
+        // 若当前 token 不是注释类型的，跳过
+        if ($tokens[$i][0] != T_COMMENT && $tokens[$i][0] != T_DOC_COMMENT) {
+            if ($tokens[$i][0] != T_WHITESPACE) {
+                $line_effective = true;
+            }
+            continue;
+        }
+
+        $token_cur =& $tokens[$i];
+        $token_prev =& $tokens[$i-1];
+        $token_next =& $tokens[$i+1];
+
+        // 若上一个 token 是 T_WHITESPACE 类型的，且以空格结尾，
+        // 则将其结尾处的空格移动到当前 token 开始处
+        if (is_array($token_prev) && $token_prev[0] == T_WHITESPACE
+            && $token_prev[1][strlen($token_prev[1])-1] == ' ') {
+            $temp = rtrim($token_prev[1], ' ');
+            $token_cur[1] = substr($token_prev[1], strlen($temp)) . $token_cur[1];
+            $token_prev[1] = $temp;
+        }
+
+        // 若下一个 token 是 T_WHITESPACE 类型的，且以 \n 开始，
+        // 则将其开始处的 \n 移动到当前 token 的结尾处 (仅处理一个 \n)
+        if (is_array($token_next) && $token_next[0] == T_WHITESPACE && $token_next[1][0] == "\n") {
+            $token_cur[1] .= "\n";
+            $token_next[1] = substr($token_next[1], 1);
+        }
+
+        // 若下一个 token 是 T_WHITESPACE 类型的，且当前 token 所在行含有有效代码，
+        // 则将当前 token 结尾处可能存在的 \n 符号移动到下一个 token 的开始处 (可能有多个 \n)
+        // (对于所在行无其他有效代码的注释，结尾处的 \n 符不进行处理，在去除注释时同时去除)
+        if (is_array($token_next) && $token_next[0] == T_WHITESPACE
+            && $token_cur[1][strlen($token_cur[1])-1] == "\n" && $line_effective) {
+            $temp = rtrim($token_cur[1], "\n");
+            $token_next[1] = substr($token_cur[1], strlen($temp)) . $token_next[1];
+            $token_cur[1] = $temp;
+        }
+
+        unset($token_cur);
+        unset($token_prev);
+        unset($token_next);
+    }
+/*
+    foreach ($tokens as &$token) {
+        if (is_array($token)) {
+            $token[0] = token_name($token[0]);
+            $token[1] = str_replace(array("\r", "\n", " "), array("\\r", "\\n", "\\s"), $token[1]);
+        }
+    }
+    unset($token);
+    $contents = print_r($tokens, true);
+    return;
+*/
+    $contents = '';
+    $is_first_dc = true;
+    for ($i = 0; $i < $count_tokens; $i++) {
+        $token = $tokens[$i];
+
+        if (is_string($token)) {
+            $contents .= $token;
+            continue;
+        }
+
+        if ($token[0] == T_COMMENT && $strip_gc) {
+            continue;
+        } elseif ($token[0] == T_DOC_COMMENT && $strip_dc) {
+            if (!$reserve_first_dc) {
+                if (isset($tokens[$i+1]) && is_array($tokens[$i+1]) && $tokens[$i+1][1] == "\n") {
+                    $i++;
+                }
+                continue;
+            }
+
+            if (!$is_first_dc) {
+                continue;
+            } else {
+                $is_first_dc = false;
+            }
+        }
+
+        $contents .= $token[1];
+    }
+}
+
+function strip_php_tag(&$contents) {
+    $tokens = token_get_all($contents);
+
+    $contents = '';
+    foreach ($tokens as $token) {
+        if (is_string($token)) {
+            $contents .= $token;
+            continue;
+        }
+
+        if ($token[0] == T_OPEN_TAG || $token[0] == T_CLOSE_TAG) {
+            continue;
+        }
+
+        $contents .= $token[1];
+    }
+}
 
 ?>

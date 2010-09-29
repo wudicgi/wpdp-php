@@ -98,6 +98,8 @@ class WPDP_Indexes extends WPDP_Common {
      */
     private $_node_accesses = array();
 
+#ifndef BUILD_READONLY
+
     /**
      * 结点的锁
      *
@@ -107,6 +109,10 @@ class WPDP_Indexes extends WPDP_Common {
      */
     private $_node_locks = array();
 
+#endif
+
+#ifndef BUILD_READONLY
+
     /**
      * 是否正在对结点进行操作的状态标志
      *
@@ -115,6 +121,8 @@ class WPDP_Indexes extends WPDP_Common {
      * @var bool
      */
     private $_node_in_protection = false;
+
+#endif
 
     /**
      * 当前文件结尾处的偏移量
@@ -157,7 +165,7 @@ class WPDP_Indexes extends WPDP_Common {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ create()
 
@@ -210,7 +218,7 @@ class WPDP_Indexes extends WPDP_Common {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _writeTable()
 
@@ -245,7 +253,7 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ flush()
 
@@ -331,7 +339,9 @@ class WPDP_Indexes extends WPDP_Common {
             return false;
         }
 
+#ifndef BUILD_READONLY
         $this->_beginNodeProtection();
+#endif
 
         $key = $attr_value;
 
@@ -378,14 +388,16 @@ class WPDP_Indexes extends WPDP_Common {
             }
         }
 
+#ifndef BUILD_READONLY
         $this->_endNodeProtection();
+#endif
 
         return $offsets;
     }
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ index()
 
@@ -438,9 +450,11 @@ class WPDP_Indexes extends WPDP_Common {
         return true;
     }
 
+    // }}}
+
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _treeInsert()
 
@@ -503,7 +517,7 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _splitNode()
 
@@ -559,6 +573,8 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
+#ifndef BUILD_READONLY
+
     private function &_splitNode_GetParentNode(array &$node) {
         assert('is_array($node)');
 
@@ -601,6 +617,10 @@ class WPDP_Indexes extends WPDP_Common {
 
         return $node_parent;
     }
+
+#endif
+
+#ifndef BUILD_READONLY
 
     private function _splitNode_Divide(array &$node, array &$node_2, array &$node_parent) {
         assert('is_array($node)');
@@ -655,6 +675,10 @@ class WPDP_Indexes extends WPDP_Common {
                 $node_2['_ofsSelf'], $node_pos_in_parent);
         }
     }
+
+#endif
+
+#ifndef BUILD_READONLY
 
     private function _splitNode_GetMiddle(array &$node, array &$node_2) {
         assert('is_array($node)');
@@ -725,7 +749,9 @@ class WPDP_Indexes extends WPDP_Common {
         return array($middle, $node_size_left);
     }
 
-#ifdef VERSION_WRITABLE
+#endif
+
+#ifndef BUILD_READONLY
 
     // {{{ _splitNode_GetPositionInParent()
 
@@ -786,7 +812,7 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _appendElement()
 
@@ -832,7 +858,7 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _insertElementAfter()
 
@@ -889,7 +915,7 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _isOverflowed()
 
@@ -912,7 +938,7 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _computeNodeSize()
 
@@ -941,7 +967,7 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _computeElementSize()
 
@@ -1003,41 +1029,39 @@ class WPDP_Indexes extends WPDP_Common {
 
         if (array_key_exists($offset, $this->_node_caches)) {
             trace(__METHOD__, "found in cache");
-#ifdef VERSION_WRITABLE
             $this->_node_accesses[$offset] = time();
-#endif
+#ifndef BUILD_READONLY
             if ($this->_node_in_protection) {
                 $this->_node_locks[$offset] = true;
             }
+#endif
             return $this->_node_caches[$offset];
         }
 
-#ifdef VERSION_WRITABLE
         $this->_optimizeCache();
 
         if ($offset_parent != -1) {
             $this->_node_parents[$offset] = $offset_parent;
         }
-#endif
 
         trace(__METHOD__, "read from file");
 
         $this->_seek($offset, WPIO::SEEK_SET, self::RELATIVE);
         $this->_node_caches[$offset] = WPDP_Struct::unpackNode($this->_stream);
         $this->_node_caches[$offset]['_ofsSelf'] = $offset;
-#ifdef VERSION_WRITABLE
         $this->_node_accesses[$offset] = time();
-#endif
+#ifndef BUILD_READONLY
         if ($this->_node_in_protection) {
             $this->_node_locks[$offset] = true;
         }
+#endif
 
         return $this->_node_caches[$offset];
     }
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _createNode()
 
@@ -1090,8 +1114,6 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-#ifdef VERSION_WRITABLE
-
     // {{{ _optimizeCache()
 
     /**
@@ -1116,6 +1138,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         asort($this->_node_accesses, SORT_NUMERIC); // 按最后访问时间从远到近排序
         foreach ($this->_node_accesses as $offset => $access) {
+#ifndef BUILD_READONLY
             // to be noticed
             if (array_key_exists($offset, $this->_node_locks)) {
                 trace(__METHOD__, "node $offset is locked, skipped");
@@ -1125,6 +1148,13 @@ class WPDP_Indexes extends WPDP_Common {
                 $offsets[] = $offset;
                 $count_current--;
             }
+#endif
+#ifdef BUILD_READONLY
+/*
+            $offsets[] = $offset;
+            $count_current--;
+*/
+#endif
             if ($count_current <= self::NODE_AVG_CACHE) {
                 break;
             }
@@ -1135,7 +1165,9 @@ class WPDP_Indexes extends WPDP_Common {
         sort($offsets, SORT_NUMERIC);
         foreach ($offsets as $offset) {
             trace(__METHOD__, "remove $offset from cache");
+#ifndef BUILD_READONLY
             $this->_writeNode($this->_node_caches[$offset]);
+#endif
             unset($this->_node_caches[$offset]);
             unset($this->_node_accesses[$offset]);
         }
@@ -1149,7 +1181,7 @@ class WPDP_Indexes extends WPDP_Common {
 
     // }}}
 
-#endif
+#ifndef BUILD_READONLY
 
     private function _beginNodeProtection() {
         assert('$this->_node_in_protection == false');
@@ -1158,6 +1190,10 @@ class WPDP_Indexes extends WPDP_Common {
         $this->_node_locks = array();
     }
 
+#endif
+
+#ifndef BUILD_READONLY
+
     private function _endNodeProtection() {
         assert('$this->_node_in_protection == true');
 
@@ -1165,7 +1201,9 @@ class WPDP_Indexes extends WPDP_Common {
         $this->_node_locks = array();
     }
 
-#ifdef VERSION_WRITABLE
+#endif
+
+#ifndef BUILD_READONLY
 
     // {{{ _writeNode()
 
@@ -1276,7 +1314,7 @@ class WPDP_Indexes extends WPDP_Common {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _binarySearchRightmost()
 

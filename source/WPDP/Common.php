@@ -124,6 +124,14 @@ abstract class WPDP_Common {
             throw new WPDP_InternalException("Invalid open mode: $mode");
         }
 
+#ifdef BUILD_READONLY
+/*
+        if ($mode != WPDP::MODE_READONLY) {
+            throw new WPDP_InternalException("This is a readonly build of WPDP");
+        }
+*/
+#endif
+
         // 检查内容流的可读性、可定位性与可写性
         if (!$stream->isReadable()) {
             throw new WPDP_InternalException("The specified stream is not readable");
@@ -144,7 +152,7 @@ abstract class WPDP_Common {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ create()
 
@@ -214,6 +222,8 @@ abstract class WPDP_Common {
 
 #endif
 
+#ifndef BUILD_READONLY
+
     // {{{ flush()
 
     /**
@@ -221,12 +231,11 @@ abstract class WPDP_Common {
      *
      * @access public
      */
-    public function flush() {
-        // to be noticed
-        // do nothing
-    }
+    abstract public function flush();
 
     // }}}
+
+#endif
 
     // {{{ _readHeader()
 
@@ -242,7 +251,7 @@ abstract class WPDP_Common {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _writeHeader()
 
@@ -283,7 +292,7 @@ abstract class WPDP_Common {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _writeSection()
 
@@ -446,7 +455,7 @@ abstract class WPDP_Common {
 
     // }}}
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _write()
 

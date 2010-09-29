@@ -186,7 +186,7 @@ class WPDP_Struct {
         unset($struct);
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     public static function create($type) {
         assert('is_string($type)');
@@ -221,7 +221,7 @@ class WPDP_Struct {
 
 #endif
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     public static function packHeader(array &$object) {
         assert('is_array($object)');
@@ -246,7 +246,7 @@ class WPDP_Struct {
         return $object;
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     public static function packSection(array &$object) {
         assert('is_array($object)');
@@ -271,7 +271,7 @@ class WPDP_Struct {
         return $object;
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     public static function packMetadata(array &$object) {
         assert('is_array($object)');
@@ -305,7 +305,7 @@ class WPDP_Struct {
         return $object;
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     public static function packIndexTable(array &$object) {
         assert('is_array($object)');
@@ -339,7 +339,7 @@ class WPDP_Struct {
         return $object;
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     public static function packNode(array &$object) {
         assert('is_array($object)');
@@ -422,7 +422,7 @@ class WPDP_Struct {
         return $object;
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     private static function _packFixed($type, array &$object) {
         assert('is_string($type)');
@@ -461,7 +461,7 @@ class WPDP_Struct {
         return $object;
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     private static function _packVariant($type, array &$object, &$blob) {
         assert('is_string($type)');
@@ -534,7 +534,7 @@ class WPDP_Struct {
         return $object;
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ _packMetadataBlob()
 
@@ -618,7 +618,7 @@ class WPDP_Struct {
         return $attributes;
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     private static function _packIndexTableBlob(array &$object) {
         assert('is_array($object)');
@@ -686,5 +686,7 @@ class WPDP_Struct {
         return $block_size;
     }
 }
+
+WPDP_Struct::init();
 
 ?>

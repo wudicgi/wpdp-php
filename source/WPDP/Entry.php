@@ -387,7 +387,7 @@ class WPDP_Entry_Attributes implements Iterator, Countable, ArrayAccess {
         return new WPDP_Entry_Attributes($metadata['attributes']);
     }
 
-#ifdef VERSION_WRITABLE
+#ifndef BUILD_READONLY
 
     // {{{ createFromArray()
 
