@@ -57,6 +57,7 @@ class WPDP_Struct {
                 'lenIndexes' => 'V',
                 '__padding' => 'a476' // 填充块到 512 bytes
             ),
+#ifndef BUILD_READONLY
             'default' => array(
                 'signature' => WPDP::HEADER_SIGNATURE,
                 'version' => WPDP::HEADER_THIS_VERSION,
@@ -72,7 +73,8 @@ class WPDP_Struct {
                 'ofsIndexes' => 0,
                 'lenIndexes' => 0,
                 '__padding' => '',
-            )
+            ),
+#endif
         ),
         'section' => array(
             'blocks' => array(
@@ -84,6 +86,7 @@ class WPDP_Struct {
                 'ofsLast' => 'V',
                 '__padding' => 'a494' // 填充块到 512 bytes
             ),
+#ifndef BUILD_READONLY
             'default' => array(
                 'signature' => WPDP::SECTION_SIGNATURE,
                 'type' => WPDP::SECTION_TYPE_UNDEFINED,
@@ -92,7 +95,8 @@ class WPDP_Struct {
                 'ofsFirst' => 0,
                 'ofsLast' => 0,
                 '__padding' => ''
-            )
+            ),
+#endif
         ),
         'metadata' => array(
             'blocks' => array(
@@ -111,6 +115,7 @@ class WPDP_Struct {
                 'ofsChecksumTable' => 'V', // 分块校验值表的偏移量
                 '__padding' => 'a56' // 填充块头部到 96 bytes
             ),
+#ifndef BUILD_READONLY
             'default' => array(
                 'signature' => WPDP::METADATA_SIGNATURE,
                 'lenBlock' => 0,
@@ -126,7 +131,8 @@ class WPDP_Struct {
                 'ofsOffsetTable' => 0,
                 'ofsChecksumTable' => 0,
                 '__padding' => ''
-            )
+            ),
+#endif
         ),
         'index_table' => array(
             'blocks' => array(
@@ -135,12 +141,14 @@ class WPDP_Struct {
                 'lenActual' => 'v', // 实际内容长度
                 '__padding' => 'a24' // 填充块头部到 32 bytes
             ),
+#ifndef BUILD_READONLY
             'default' => array(
                 'signature' => WPDP::INDEX_TABLE_SIGNATURE,
                 'lenBlock' => 0,
                 'lenActual' => 0,
                 '__padding' => ''
-            )
+            ),
+#endif
         ),
         'node' => array(
             'blocks' => array(
@@ -154,6 +162,7 @@ class WPDP_Struct {
                 '__padding' => 'a20' // 填充块头部到 32 bytes
                 // to be noticed, related to NODE_DATA_SIZE
             ),
+#ifndef BUILD_READONLY
             'default' => array(
                 'signature' => WPDP::NODE_SIGNATURE,
                 'isLeaf' => 0,
@@ -161,8 +170,9 @@ class WPDP_Struct {
                 'numElement' => 0,
                 'ofsExtra' => 0,
                 '__padding' => ''
-            )
-        )
+            ),
+#endif
+        ),
     );
 
     public static function init() {
