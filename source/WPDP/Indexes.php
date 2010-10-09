@@ -42,30 +42,28 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 结点缓存参数
      *
-     * @global integer NODE_MAX_CACHE 最大缓存数量
-     * @global integer NODE_AVG_CACHE 平均缓存数量
+     * @global integer _NODE_MAX_CACHE 最大缓存数量
+     * @global integer _NODE_AVG_CACHE 平均缓存数量
      */
-    const NODE_MAX_CACHE = 1024;
-    const NODE_AVG_CACHE = 768;
+    const _NODE_MAX_CACHE = 1024;
+    const _NODE_AVG_CACHE = 768;
 /*
-    const NODE_MAX_CACHE = 32;
-    const NODE_AVG_CACHE = 24;
+    const _NODE_MAX_CACHE = 32;
+    const _NODE_AVG_CACHE = 24;
 */
 /*
-    const NODE_MAX_CACHE = 2048;
-    const NODE_AVG_CACHE = 1536;
+    const _NODE_MAX_CACHE = 2048;
+    const _NODE_AVG_CACHE = 1536;
 */
 
-    const BINARY_SEARCH_NOT_FOUND = -127;
-    const BINARY_SEARCH_BEYOND_LEFT = -126;
-    const BINARY_SEARCH_BEYOND_RIGHT = -125;
+    const _BINARY_SEARCH_NOT_FOUND = -127;
+    const _BINARY_SEARCH_BEYOND_LEFT = -126;
+    const _BINARY_SEARCH_BEYOND_RIGHT = -125;
 
     // {{{ properties
 
     /**
      * 索引表
-     *
-     * @access private
      *
      * @var array
      */
@@ -74,8 +72,6 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 结点缓存
      *
-     * @access private
-     *
      * @var array
      */
     private $_node_caches = array();
@@ -83,16 +79,12 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 结点与其父结点的对应关系
      *
-     * @access private
-     *
      * @var array
      */
     private $_node_parents = array();
 
     /**
      * 结点最后访问时间
-     *
-     * @access private
      *
      * @var array
      */
@@ -102,8 +94,6 @@ class WPDP_Indexes extends WPDP_Common {
 
     /**
      * 结点的锁
-     *
-     * @access private
      *
      * @var array
      */
@@ -116,8 +106,6 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 是否正在对结点进行操作的状态标志
      *
-     * @access private
-     *
      * @var bool
      */
     private $_node_in_protection = false;
@@ -126,8 +114,6 @@ class WPDP_Indexes extends WPDP_Common {
 
     /**
      * 当前文件结尾处的偏移量
-     *
-     * @access private
      *
      * @var int
      */
@@ -140,12 +126,8 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 构造函数
      *
-     * @access public
-     *
      * @param object  $stream   文件操作对象
      * @param integer $mode     打开模式
-     *
-     * @throws WPDP_InternalException
      */
     function __construct(WPIO_Stream $stream, $mode) {
         assert('is_a($stream, \'WPIO_Stream\')');
@@ -153,12 +135,12 @@ class WPDP_Indexes extends WPDP_Common {
 
         assert('in_array($mode, array(WPDP::MODE_READONLY, WPDP::MODE_READWRITE))');
 
-        parent::__construct(WPDP::SECTION_TYPE_INDEXES, $stream, $mode);
+        parent::__construct(WPDP_Struct::SECTION_TYPE_INDEXES, $stream, $mode);
 
         $this->_readTable();
 
-        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE); // to be noticed
-        $this->_offset_end = $this->_tell(self::RELATIVE);
+        $this->_seek(0, WPIO::SEEK_END, self::_ABSOLUTE); // to be noticed
+        $this->_offset_end = $this->_tell(self::_RELATIVE);
 
         trace(__METHOD__, "offset_end = $this->_offset_end");
     }
@@ -172,81 +154,31 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 创建索引文件
      *
-     * @access public
-     *
      * @param object $stream    文件操作对象
-     *
-     * @throws WPDP_InternalException
      */
     public static function create(WPIO_Stream $stream) {
         assert('is_a($stream, \'WPIO_Stream\')');
 
-        parent::create(WPDP::FILE_TYPE_INDEXES, WPDP::SECTION_TYPE_INDEXES, $stream);
+        parent::create(WPDP_Struct::HEADER_TYPE_INDEXES, WPDP_Struct::SECTION_TYPE_INDEXES, $stream);
 
         $table = WPDP_Struct::create('index_table');
         $data_table = WPDP_Struct::packIndexTable($table);
         $len_written = $stream->write($data_table);
         WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_table));
 
-        $stream->seek(WPDP::HEADER_BLOCK_SIZE, WPIO::SEEK_SET);
+        $stream->seek(WPDP_Struct::HEADER_BLOCK_SIZE, WPIO::SEEK_SET);
         $section = WPDP_Struct::unpackSection($stream);
-        $section['ofsTable'] = WPDP::SECTION_BLOCK_SIZE;
+        $section['ofsTable'] = WPDP_Struct::SECTION_BLOCK_SIZE;
 
         $data_section = WPDP_Struct::packSection($section);
-        $stream->seek(WPDP::HEADER_BLOCK_SIZE, WPIO::SEEK_SET);
+        $stream->seek(WPDP_Struct::HEADER_BLOCK_SIZE, WPIO::SEEK_SET);
         $len_written = $stream->write($data_section);
         WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_section));
 
+        // 写入了重要的结构和信息，将流的缓冲区写入
+        $stream->flush();
+
         return true;
-    }
-
-    // }}}
-
-#endif
-
-    // {{{ _readTable()
-
-    /**
-     * 读取索引表
-     *
-     * @access private
-     */
-    private function _readTable() {
-        $this->_seek($this->_section['ofsTable'], WPIO::SEEK_SET, self::RELATIVE);
-        $this->_table = WPDP_Struct::unpackIndexTable($this->_stream);
-    }
-
-    // }}}
-
-#ifndef BUILD_READONLY
-
-    // {{{ _writeTable()
-
-    /**
-     * 写入索引表
-     *
-     * @access private
-     */
-    private function _writeTable() {
-        $offset = $this->_section['ofsTable'];
-        $length_original = $this->_table['lenBlock'];
-
-        $data_table = WPDP_Struct::packIndexTable($this->_table);
-        $length_current = $this->_table['lenBlock'];
-
-        if ($length_current > $length_original) {
-            $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
-            $offset_new = $this->_tell(self::RELATIVE);
-            $this->_write($data_table);
-
-            $this->_offset_end += $this->_table['lenBlock'];
-
-            $this->_section['ofsTable'] = $offset_new;
-            $this->_writeSection();
-        } else {
-            $this->_seek($offset, WPIO::SEEK_SET, self::RELATIVE);
-            $this->_write($data_table);
-        }
     }
 
     // }}}
@@ -261,54 +193,31 @@ class WPDP_Indexes extends WPDP_Common {
      * 将缓冲内容写入文件
      *
      * 该方法会从缓存中去除某些结点
-     *
-     * @access public
      */
     public function flush() {
-        trace(__METHOD__, count($this->_node_caches) . " nodes in cache need to write");
-
-        foreach ($this->_node_caches as &$node) {
-            $this->_writeNode($node);
-        }
-        unset($node);
-
-        if ($this->_node_in_protection) {
-            $offsets = array_keys($this->_node_caches);
-            foreach ($offsets as $offset) {
-                if (array_key_exists($offset, $this->_node_locks)) {
-                    trace(__METHOD__, "node $offset is locked, skipped");
-                    continue;
-                }
-                trace(__METHOD__, "remove $offset from cache");
-                // unset 是语言结构而不是函数，键值 $offset 不存在时也不会产生错误
-                unset($this->_node_caches[$offset]);
-//                unset($this->_node_parents[$offset]); // to be noticed
-                unset($this->_node_accesses[$offset]);
-            }
-        } else {
-            trace(__METHOD__, "remove all nodes from cache");
-            $this->_node_caches = array();
-            $this->_node_parents = array();
-            $this->_node_accesses = array();
-        }
+        $this->_flushNodes();
 
         // to be noticed
-        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
-        $length = $this->_tell(self::RELATIVE);
-        $this->_header['lenIndexes'] = $length;
-        $this->_writeHeader();
+        $this->_seek(0, WPIO::SEEK_END, self::_ABSOLUTE);
+        $length = $this->_tell(self::_RELATIVE);
+        $this->_section['length'] = $length;
+        $this->_writeSection();
+
+        $this->_stream->flush();
     }
 
     // }}}
 
 #endif
 
+    public function getSectionLength() {
+        return $this->_offset_end;
+    }
+
     // {{{ find()
 
     /**
      * 查找符合指定属性值的所有条目元数据的偏移量
-     *
-     * @access public
      *
      * @param string $attr_name     属性名
      * @param string $attr_value    属性值
@@ -352,7 +261,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         while (!$node['isLeaf']) {
             trace(__METHOD__, "go through node " . $node['_ofsSelf']);
-            $pos = $this->_binarySearchLeftmost($node, $key, true);
+            $pos = self::_binarySearchLeftmost($node, $key, true);
             if ($pos == -1) {
                 $offset = $node['ofsExtra'];
             } else {
@@ -366,9 +275,9 @@ class WPDP_Indexes extends WPDP_Common {
 
         trace(__METHOD__, "now at the leaf node " . $node['_ofsSelf']);
 
-        $pos = $this->_binarySearchLeftmost($node, $key, false);
+        $pos = self::_binarySearchLeftmost($node, $key, false);
 
-        if ($pos == self::BINARY_SEARCH_NOT_FOUND) {
+        if ($pos == self::_BINARY_SEARCH_NOT_FOUND) {
             trace(__METHOD__, "key $key not found");
             return array();
         }
@@ -404,8 +313,6 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 对指定条目做索引
      *
-     * @access public
-     *
      * @param object $args  条目参数
      *
      * @return bool 总是 true
@@ -428,7 +335,7 @@ class WPDP_Indexes extends WPDP_Common {
 
             if (!array_key_exists($attr_name, $this->_table['indexes'])) {
                 $node_root =& $this->_createNode(true, null);
-                $this->flush();
+                $this->_flushNodes();
 
 //                echo "$attr_name => " . $node_root['_ofsSelf'] . "\n";
 
@@ -437,6 +344,9 @@ class WPDP_Indexes extends WPDP_Common {
                     'ofsRoot' => $node_root['_ofsSelf']
                 );
                 $this->_writeTable();
+
+                // 写入了重要的结构和信息，将流的缓冲区写入
+                $this->flush(); // to be noticed
             }
 
             $offset = $this->_table['indexes'][$attr_name]['ofsRoot'];
@@ -454,14 +364,57 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
+    // {{{ _readTable()
+
+    /**
+     * 读取索引表
+     */
+    private function _readTable() {
+        $this->_seek($this->_section['ofsTable'], WPIO::SEEK_SET, self::_RELATIVE);
+        $this->_table = WPDP_Struct::unpackIndexTable($this->_stream);
+    }
+
+    // }}}
+
+#ifndef BUILD_READONLY
+
+    // {{{ _writeTable()
+
+    /**
+     * 写入索引表
+     */
+    private function _writeTable() {
+        $offset = $this->_section['ofsTable'];
+        $length_original = $this->_table['lenBlock'];
+
+        $data_table = WPDP_Struct::packIndexTable($this->_table);
+        $length_current = $this->_table['lenBlock'];
+
+        if ($length_current > $length_original) {
+            $this->_seek(0, WPIO::SEEK_END, self::_ABSOLUTE);
+            $offset_new = $this->_tell(self::_RELATIVE);
+            $this->_write($data_table);
+
+            $this->_offset_end += $this->_table['lenBlock'];
+
+            $this->_section['ofsTable'] = $offset_new;
+            $this->_writeSection();
+        } else {
+            $this->_seek($offset, WPIO::SEEK_SET, self::_RELATIVE);
+            $this->_write($data_table);
+        }
+    }
+
+    // }}}
+
+#endif
+
 #ifndef BUILD_READONLY
 
     // {{{ _treeInsert()
 
     /**
      * 插入指定结点到 B+ 树中
-     *
-     * @access private
      *
      * @param integer $root_offset  B+ 树根结点的偏移量
      * @param string  $key          结点的键 (用于查找的数值或字符串)
@@ -488,7 +441,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         while (!$node['isLeaf']) {
             trace(__METHOD__, "go through node " . $node['_ofsSelf']);
-            $pos = $this->_binarySearchRightmost($node, $key, true);
+            $pos = self::_binarySearchRightmost($node, $key, true);
             if ($pos == -1) {
                 $offset = $node['ofsExtra'];
             } else {
@@ -502,11 +455,13 @@ class WPDP_Indexes extends WPDP_Common {
 
         trace(__METHOD__, "now at the leaf node " . $node['_ofsSelf']);
 
-        $pos = $this->_binarySearchRightmost($node, $key, true);
+        $pos = self::_binarySearchRightmost($node, $key, true);
 
-        $this->_insertElementAfter($node, $key, $value, $pos);
+        assert('array_key_exists($node[\'_ofsSelf\'], $this->_node_caches)');
 
-        if ($this->_isOverflowed($node)) {
+        self::_insertElementAfter($node, $key, $value, $pos);
+
+        if (self::_isOverflowed($node)) {
             $this->_splitNode($node);
         }
 
@@ -524,8 +479,6 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 分裂结点
      *
-     * @access private
-     *
      * @param array $node   结点
      *
      * @return bool 总是 true
@@ -533,7 +486,7 @@ class WPDP_Indexes extends WPDP_Common {
     private function _splitNode(array &$node) {
         assert('is_array($node)');
 
-        assert('$this->_isOverflowed($node) == true');
+        assert('self::_isOverflowed($node) == true');
         assert('count($node[\'elements\']) >= 2');
 
         trace(__METHOD__, "node_offset = " . $node['_ofsSelf'] . ", is_leaf = " . $node['isLeaf']);
@@ -557,14 +510,14 @@ class WPDP_Indexes extends WPDP_Common {
 
         $this->_splitNode_Divide($node, $node_2, $node_parent);
 
-        assert('$this->_isOverflowed($node) == false');
-        assert('$this->_isOverflowed($node_2) == false');
+        assert('self::_isOverflowed($node) == false');
+        assert('self::_isOverflowed($node_2) == false');
 
         /*
         trace(__METHOD__, "split a node, size: $node_size_orig => " . $node['_size'] . " + " . $node_2['_size'] . ", count: $count_elements => " . count($node['elements']) . " + " . count($node_2['elements']) . "\n");
         */
 
-        if ($this->_isOverflowed($node_parent)) {
+        if (self::_isOverflowed($node_parent)) {
             $this->_splitNode($node_parent);
         }
     }
@@ -598,7 +551,8 @@ class WPDP_Indexes extends WPDP_Common {
         $this->_node_parents[$node['_ofsSelf']] = $node_parent['_ofsSelf'];
         // 将当前结点的首个元素的键添加到新建的根结点中
         trace(__METHOD__, "add offset " . $node['_ofsSelf'] . " as the new root's ofsExtra");
-        $this->_appendElement($node_parent, $node['elements'][0]['key'],
+        assert('array_key_exists($node_parent[\'_ofsSelf\'], $this->_node_caches)');
+        self::_appendElement($node_parent, $node['elements'][0]['key'],
             $node['_ofsSelf']);
 
         // to be noticed
@@ -614,6 +568,9 @@ class WPDP_Indexes extends WPDP_Common {
         unset($index);
         assert('$flag_changed');
         $this->_writeTable();
+
+        // 写入了重要的结构和信息，将流的缓冲区写入
+        $this->flush(); // to be noticed
 
         return $node_parent;
     }
@@ -652,6 +609,8 @@ class WPDP_Indexes extends WPDP_Common {
             $node_2['_size'] = $node['_size'] - $node_size_left;
             $node['_size'] = $node_size_left;
 
+            assert('array_key_exists($node_parent[\'_ofsSelf\'], $this->_node_caches)');
+
             $this->_insertElementAfter($node_parent, $node_2['elements'][0]['key'],
                 $node_2['_ofsSelf'], $node_pos_in_parent);
         } else {
@@ -662,7 +621,7 @@ class WPDP_Indexes extends WPDP_Common {
             $node_2['elements'] = array_slice($node['elements'], $middle + 1);
             $node['elements'] = array_slice($node['elements'], 0, $middle);
             $node_2['_size'] = $node['_size'] - $node_size_left;
-            $node_2['_size'] -= $this->_computeElementSize($element_mid['key']);
+            $node_2['_size'] -= self::_computeElementSize($element_mid['key']);
             $node['_size'] = $node_size_left;
 
             // newly added, fixed the bug
@@ -670,6 +629,8 @@ class WPDP_Indexes extends WPDP_Common {
             foreach ($node_2['elements'] as $elem) {
                 $this->_node_parents[$elem['value']] = $node_2['_ofsSelf'];
             }
+
+            assert('array_key_exists($node_parent[\'_ofsSelf\'], $this->_node_caches)');
 
             $this->_insertElementAfter($node_parent, $element_mid['key'],
                 $node_2['_ofsSelf'], $node_pos_in_parent);
@@ -692,7 +653,7 @@ class WPDP_Indexes extends WPDP_Common {
         $count_elements = count($node['elements']);
 
         $node_size_orig = $node['_size']; // for test, to be noticed
-        $node_size_half = (int)(WPDP::NODE_DATA_SIZE / 2);
+        $node_size_half = (int)(WPDP_Struct::NODE_DATA_SIZE / 2);
         $node_size_left = 0;
 
         trace(__METHOD__, "size_orig = $node_size_orig, size_half = $node_size_half");
@@ -700,7 +661,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         $middle = -1;
         for ($pos = 0; $pos < $count_elements; $pos++) {
-            $elem_size = $this->_computeElementSize($node['elements'][$pos]['key']);
+            $elem_size = self::_computeElementSize($node['elements'][$pos]['key']);
             trace(__METHOD__, "size_elem[" . $pos . "] = $elem_size");
             if ($node_size_left + $elem_size > $node_size_half) {
                 trace(__METHOD__, "size_left + size_elem = " . ($node_size_left + $elem_size) . " > size_half");
@@ -740,7 +701,7 @@ class WPDP_Indexes extends WPDP_Common {
         if ($node['elements'][$middle]['key'] != $node['elements'][0]['key']) {
             while ($node['elements'][$middle]['key'] == $node['elements'][$middle-1]['key']) {
                 $middle--;
-                $node_size_left -= $this->_computeElementSize($node['elements'][$middle]['key']);
+                $node_size_left -= self::_computeElementSize($node['elements'][$middle]['key']);
             }
         }
 
@@ -757,8 +718,6 @@ class WPDP_Indexes extends WPDP_Common {
 
     /**
      * 获取指定结点在其父结点中的位置
-     *
-     * @access private
      *
      * @param array $node           结点
      * @param array $node_parent    父结点
@@ -789,7 +748,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         // 此处需要使用 lookup 方式在父结点中查找结点的第一个键
         // B+ 树的形态参考 Database 一书中的图 8-12
-        $pos = $this->_binarySearchLeftmost($node_parent, $node['elements'][0]['key'], true);
+        $pos = self::_binarySearchLeftmost($node_parent, $node['elements'][0]['key'], true);
 
         assert('$pos != -1'); // 若位置在左边界外，则应在前面的 if 判断中已检查出
 
@@ -812,185 +771,6 @@ class WPDP_Indexes extends WPDP_Common {
 
 #endif
 
-#ifndef BUILD_READONLY
-
-    // {{{ _appendElement()
-
-    /**
-     * 将元素附加到结点结尾
-     *
-     * @access private
-     *
-     * @param array   $node   结点
-     * @param string  $key    元素的键
-     * @param integer $value  元素的值
-     *
-     * @return bool 总是 true
-     */
-    private function _appendElement(array &$node, $key, $value) {
-        assert('is_array($node)');
-        assert('is_string($key)');
-        assert('is_int($value)');
-
-        trace(__METHOD__, "node = " . $node['_ofsSelf'] . ", key = $key, value = $value");
-
-        if (!array_key_exists($node['_ofsSelf'], $this->_node_caches)) {
-            echo "Fatal error: node have been threw away.\n";
-        }
-
-        if ($node['isLeaf'] || $node['ofsExtra'] != 0) {
-            // 是叶子结点，或非空的普通结点
-            $node['elements'][] = array('key' => $key, 'value' => $value);
-            $node['_size'] += $this->_computeElementSize($key);
-        } else {
-            // 是空的普通结点
-            $node['ofsExtra'] = $value;
-        }
-
-        trace(__METHOD__, "node size: " . $node['_size'] . " bytes, calculated size: " . $this->_computeNodeSize($node) . ($this->_isOverflowed($node) ? ", <span style=\"color: red;\">overflowed</span>" : ""));
-
-        assert('$node[\'_size\'] == $this->_computeNodeSize($node)');
-
-        return true;
-    }
-
-    // }}}
-
-#endif
-
-#ifndef BUILD_READONLY
-
-    // {{{ _insertElementAfter()
-
-    /**
-     * 将元素插入到结点中的指定位置的元素后
-     *
-     * 当 $pos 为 -1 时将元素插入到最前面，为 0 时插入到 elements[0] 后，
-     * 为 1 时插入到 elements[1] 后，为 n 时调用 _appendElement()
-     * 方法将元素附加到结点结尾。其中 n = count(elements) - 1.
-     *
-     * @access private
-     *
-     * @param array   $node   结点
-     * @param string  $key    元素的键
-     * @param integer $value  元素的值
-     * @param integer $pos    定位元素的位置
-     *
-     * @return bool 总是 true
-     */
-    private function _insertElementAfter(array &$node, $key, $value, $pos) {
-        assert('is_array($node)');
-        assert('is_string($key)');
-        assert('is_int($value)');
-        assert('is_int($pos)');
-
-        assert('$pos >= -1');
-
-        trace(__METHOD__, "node = " . $node['_ofsSelf'] . ", key = $key, value = $value, after pos $pos");
-
-        if (!array_key_exists($node['_ofsSelf'], $this->_node_caches)) {
-            echo "Fatal error: node have been threw away.\n";
-        }
-
-        $count = count($node['elements']);
-
-        if ($pos == $count - 1) {
-            // to be noticed, 这样调用函数比把代码写到本函数中速度快，尚不清楚原因
-            return $this->_appendElement($node, $key, $value);
-        }
-
-        array_splice($node['elements'], $pos + 1, 0,
-            array(array('key' => $key, 'value' => $value)));
-
-        $node['_size'] += $this->_computeElementSize($key);
-
-        trace(__METHOD__, "node size: " . $node['_size'] . " bytes, calculated size: " . $this->_computeNodeSize($node) . ($this->_isOverflowed($node) ? ", <span style=\"color: red;\">overflowed</span>" : ""));
-
-        assert('$node[\'_size\'] == $this->_computeNodeSize($node)');
-
-        return true;
-    }
-
-    // }}}
-
-#endif
-
-#ifndef BUILD_READONLY
-
-    // {{{ _isOverflowed()
-
-    /**
-     * 判断指定结点中的元素是否已溢出
-     *
-     * @access private
-     *
-     * @param array $node  结点
-     *
-     * @return bool 若已溢出，返回 true，否则返回 false
-     */
-    private function _isOverflowed(array &$node) {
-        assert('is_array($node)');
-
-        return ($node['_size'] > WPDP::NODE_DATA_SIZE);
-    }
-
-    // }}}
-
-#endif
-
-#ifndef BUILD_READONLY
-
-    // {{{ _computeNodeSize()
-
-    /**
-     * 计算结点中所有元素的键所占空间的字节数
-     *
-     * @access private
-     *
-     * @param array $node  结点
-     *
-     * @return integer 所占空间的字节数
-     */
-    private function _computeNodeSize(array &$node) {
-        assert('is_array($node)');
-
-        $node_size = 0;
-
-        foreach ($node['elements'] as $element) {
-            $node_size += $this->_computeElementSize($element['key']);
-        }
-
-        return $node_size;
-    }
-
-    // }}}
-
-#endif
-
-#ifndef BUILD_READONLY
-
-    // {{{ _computeElementSize()
-
-    /**
-     * 计算元素的键所占空间的字节数
-     *
-     * @access private
-     *
-     * @param string $key   元素的键
-     *
-     * @return integer 所占空间的字节数
-     */
-    private function _computeElementSize($key) {
-        assert('is_string($key)');
-
-//              ptr + ofs + key_len + key
-        return (2 + 4 + 1 + strlen($key));
-    }
-
-    // }}}
-
-#endif
-
     // {{{ _getNode()
 
     /**
@@ -1000,8 +780,6 @@ class WPDP_Indexes extends WPDP_Common {
      * $offset_parent 参数为缺省值 -1 时表示不需要设置父结点的偏移量信息。
      *
      * 该方法可能会从缓存中去除某些结点
-     *
-     * @access private
      *
      * @param integer $offset         要获取结点的偏移量 (相对)
      * @param integer $offset_parent  要获取结点父结点的偏移量 (可选)
@@ -1046,7 +824,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         trace(__METHOD__, "read from file");
 
-        $this->_seek($offset, WPIO::SEEK_SET, self::RELATIVE);
+        $this->_seek($offset, WPIO::SEEK_SET, self::_RELATIVE);
         $this->_node_caches[$offset] = WPDP_Struct::unpackNode($this->_stream);
         $this->_node_caches[$offset]['_ofsSelf'] = $offset;
         $this->_node_accesses[$offset] = time();
@@ -1070,8 +848,6 @@ class WPDP_Indexes extends WPDP_Common {
      *
      * 该方法可能会从缓存中去除某些结点
      *
-     * @access private
-     *
      * @param bool $is_leaf             是否为叶子结点
      * @param integer $offset_parent    父结点的偏移量
      *
@@ -1092,7 +868,7 @@ class WPDP_Indexes extends WPDP_Common {
         trace(__METHOD__, "offset_end = $this->_offset_end");
 
         $offset = $this->_offset_end;
-        $this->_offset_end += WPDP::NODE_BLOCK_SIZE;
+        $this->_offset_end += WPDP_Struct::NODE_BLOCK_SIZE;
 
         if ($this->_node_in_protection) {
             $this->_node_locks[$offset] = true;
@@ -1123,15 +899,13 @@ class WPDP_Indexes extends WPDP_Common {
      * 以释放部分缓存空间，使缓存结点数量降低到设置的平均数量。
      *
      * 该方法可能会从缓存中去除某些结点
-     *
-     * @access public
      */
     private function _optimizeCache() {
-        if (count($this->_node_caches) <= self::NODE_MAX_CACHE) {
+        if (count($this->_node_caches) <= self::_NODE_MAX_CACHE) {
             return;
         }
 
-        trace(__METHOD__, "node count " . count($this->_node_caches) . " is greater than max count " . self::NODE_MAX_CACHE);
+        trace(__METHOD__, "node count " . count($this->_node_caches) . " is greater than max count " . self::_NODE_MAX_CACHE);
 
         $offsets = array();
         $count_current = count($this->_node_caches);
@@ -1144,7 +918,7 @@ class WPDP_Indexes extends WPDP_Common {
                 trace(__METHOD__, "node $offset is locked, skipped");
                 continue;
             }
-            if (!$this->_isOverflowed($this->_node_caches[$offset])) {
+            if (!self::_isOverflowed($this->_node_caches[$offset])) {
                 $offsets[] = $offset;
                 $count_current--;
             }
@@ -1155,7 +929,7 @@ class WPDP_Indexes extends WPDP_Common {
             $count_current--;
 */
 #endif
-            if ($count_current <= self::NODE_AVG_CACHE) {
+            if ($count_current <= self::_NODE_AVG_CACHE) {
                 break;
             }
         }
@@ -1176,10 +950,46 @@ class WPDP_Indexes extends WPDP_Common {
 
         trace(__METHOD__, "node count optimized to " . count($this->_node_caches));
 
-        assert('count($this->_node_caches) <= self::NODE_AVG_CACHE');
+        assert('count($this->_node_caches) <= self::_NODE_AVG_CACHE');
     }
 
     // }}}
+
+#ifndef BUILD_READONLY
+
+    private function _flushNodes() {
+        trace(__METHOD__, count($this->_node_caches) . " nodes in cache need to write");
+
+        foreach ($this->_node_caches as &$node) {
+            if (!self::_isOverflowed($node)) { // to be noticed
+                $this->_writeNode($node);
+            }
+        }
+        unset($node);
+
+        if ($this->_node_in_protection) {
+            $offsets = array_keys($this->_node_caches);
+            foreach ($offsets as $offset) {
+                if (array_key_exists($offset, $this->_node_locks)) {
+                    trace(__METHOD__, "node $offset is locked, skipped");
+                    continue;
+                }
+                trace(__METHOD__, "remove $offset from cache");
+                // unset 是语言结构而不是函数，键值 $offset 不存在时也不会产生错误
+                unset($this->_node_caches[$offset]);
+//                unset($this->_node_parents[$offset]); // to be noticed
+                unset($this->_node_accesses[$offset]);
+            }
+        } else {
+            // to be noticed
+            trace(__METHOD__, "remove all nodes from cache");
+            $this->_node_caches = array();
+            $this->_node_parents = array();
+            $this->_node_accesses = array();
+        }
+    }
+
+#endif
 
 #ifndef BUILD_READONLY
 
@@ -1210,22 +1020,181 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 写入结点
      *
-     * @access private
-     *
      * @param array $node  结点
      */
     private function _writeNode(array &$node) {
         assert('is_array($node)');
 
-        assert('$this->_isOverflowed($node) == false');
+        assert('self::_isOverflowed($node) == false');
 
         trace(__METHOD__, "node_offset = " . $node['_ofsSelf'] . ", parent_offset = " . $this->_node_parents[$node['_ofsSelf']]);
 
         $data_node = WPDP_Struct::packNode($node);
 
-        $this->_write($data_node, $node['_ofsSelf'], self::RELATIVE);
+        $this->_write($data_node, $node['_ofsSelf'], self::_RELATIVE);
 
         return true;
+    }
+
+    // }}}
+
+#endif
+
+#ifndef BUILD_READONLY
+
+    // {{{ _appendElement()
+
+    /**
+     * 将元素附加到结点结尾
+     *
+     * @param array   $node   结点
+     * @param string  $key    元素的键
+     * @param integer $value  元素的值
+     *
+     * @return bool 总是 true
+     */
+    private static function _appendElement(array &$node, $key, $value) {
+        assert('is_array($node)');
+        assert('is_string($key)');
+        assert('is_int($value)');
+
+        trace(__METHOD__, "node = " . $node['_ofsSelf'] . ", key = $key, value = $value");
+
+        if ($node['isLeaf'] || $node['ofsExtra'] != 0) {
+            // 是叶子结点，或非空的普通结点
+            $node['elements'][] = array('key' => $key, 'value' => $value);
+            $node['_size'] += self::_computeElementSize($key);
+        } else {
+            // 是空的普通结点
+            $node['ofsExtra'] = $value;
+        }
+
+        trace(__METHOD__, "node size: " . $node['_size'] . " bytes, calculated size: " . self::_computeNodeSize($node) . (self::_isOverflowed($node) ? ", <span style=\"color: red;\">overflowed</span>" : ""));
+
+        assert('$node[\'_size\'] == self::_computeNodeSize($node)');
+
+        return true;
+    }
+
+    // }}}
+
+#endif
+
+#ifndef BUILD_READONLY
+
+    // {{{ _insertElementAfter()
+
+    /**
+     * 将元素插入到结点中的指定位置的元素后
+     *
+     * 当 $pos 为 -1 时将元素插入到最前面，为 0 时插入到 elements[0] 后，
+     * 为 1 时插入到 elements[1] 后，为 n 时调用 _appendElement()
+     * 方法将元素附加到结点结尾。其中 n = count(elements) - 1.
+     *
+     * @param array   $node   结点
+     * @param string  $key    元素的键
+     * @param integer $value  元素的值
+     * @param integer $pos    定位元素的位置
+     *
+     * @return bool 总是 true
+     */
+    private static function _insertElementAfter(array &$node, $key, $value, $pos) {
+        assert('is_array($node)');
+        assert('is_string($key)');
+        assert('is_int($value)');
+        assert('is_int($pos)');
+
+        assert('$pos >= -1');
+
+        trace(__METHOD__, "node = " . $node['_ofsSelf'] . ", key = $key, value = $value, after pos $pos");
+
+        $count = count($node['elements']);
+
+        if ($pos == $count - 1) {
+            // to be noticed, 这样调用函数比把代码写到本函数中速度快，尚不清楚原因
+            return self::_appendElement($node, $key, $value);
+        }
+
+        array_splice($node['elements'], $pos + 1, 0,
+            array(array('key' => $key, 'value' => $value)));
+
+        $node['_size'] += self::_computeElementSize($key);
+
+        trace(__METHOD__, "node size: " . $node['_size'] . " bytes, calculated size: " . self::_computeNodeSize($node) . (self::_isOverflowed($node) ? ", <span style=\"color: red;\">overflowed</span>" : ""));
+
+        assert('$node[\'_size\'] == self::_computeNodeSize($node)');
+
+        return true;
+    }
+
+    // }}}
+
+#endif
+
+#ifndef BUILD_READONLY
+
+    // {{{ _isOverflowed()
+
+    /**
+     * 判断指定结点中的元素是否已溢出
+     *
+     * @param array $node  结点
+     *
+     * @return bool 若已溢出，返回 true，否则返回 false
+     */
+    private static function _isOverflowed(array &$node) {
+        assert('is_array($node)');
+
+        return ($node['_size'] > WPDP_Struct::NODE_DATA_SIZE);
+    }
+
+    // }}}
+
+#endif
+
+#ifndef BUILD_READONLY
+
+    // {{{ _computeNodeSize()
+
+    /**
+     * 计算结点中所有元素的键所占空间的字节数
+     *
+     * @param array $node  结点
+     *
+     * @return integer 所占空间的字节数
+     */
+    private static function _computeNodeSize(array &$node) {
+        assert('is_array($node)');
+
+        $node_size = 0;
+
+        foreach ($node['elements'] as $element) {
+            $node_size += self::_computeElementSize($element['key']);
+        }
+
+        return $node_size;
+    }
+
+    // }}}
+
+#endif
+
+#ifndef BUILD_READONLY
+
+    // {{{ _computeElementSize()
+
+    /**
+     * 计算元素的键所占空间的字节数
+     *
+     * @param string $key   元素的键
+     *
+     * @return integer 所占空间的字节数
+     */
+    private static function _computeElementSize($key) {
+        assert('is_string($key)');
+
+//              ptr + ofs + key_len + key
+        return (2 + 8 + 1 + strlen($key));
     }
 
     // }}}
@@ -1257,15 +1226,13 @@ class WPDP_Indexes extends WPDP_Common {
      * 算法主要来自 Patrick O'Neil 和 Elizabeth O'Neil 所著的 Database: Principles,
      * Programming, and Performance (Second Edition) 中的 Example 8.3.1
      *
-     * @access private
-     *
      * @param array  $node        结点
      * @param string $desired     要查找的键
      * @param bool   $for_lookup  是否用于查找元素目的
      *
      * @return integer 位置
      */
-    private function _binarySearchLeftmost(array &$node, $desired, $for_lookup = false) {
+    private static function _binarySearchLeftmost(array &$node, $desired, $for_lookup = false) {
         assert('is_array($node)');
         assert('is_string($desired)');
         assert('is_bool($for_lookup)');
@@ -1274,12 +1241,12 @@ class WPDP_Indexes extends WPDP_Common {
 
         $count = count($node['elements']);
 
-        if ($count == 0 || $this->_keyCompare($node, $count - 1, $desired) < 0) {
+        if ($count == 0 || self::_keyCompare($node, $count - 1, $desired) < 0) {
             trace(__METHOD__, "out of right bound");
-            return ($for_lookup ? ($count - 1) : self::BINARY_SEARCH_NOT_FOUND);
-        } elseif ($this->_keyCompare($node, 0, $desired) > 0) {
+            return ($for_lookup ? ($count - 1) : self::_BINARY_SEARCH_NOT_FOUND);
+        } elseif (self::_keyCompare($node, 0, $desired) > 0) {
             trace(__METHOD__, "out of left bound");
-            return ($for_lookup ? -1 : self::BINARY_SEARCH_NOT_FOUND);
+            return ($for_lookup ? -1 : self::_BINARY_SEARCH_NOT_FOUND);
         }
 
         $m = (int)ceil(log($count, 2));
@@ -1288,7 +1255,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         while ($diff > 0) {
             trace(__METHOD__, "probe = $probe (diff = $diff)");
-            if ($probe < $count && $this->_keyCompare($node, $probe, $desired) < 0) {
+            if ($probe < $count && self::_keyCompare($node, $probe, $desired) < 0) {
                 $probe += $diff;
             } else {
                 $probe -= $diff;
@@ -1299,16 +1266,16 @@ class WPDP_Indexes extends WPDP_Common {
 
         trace(__METHOD__, "probe = $probe (diff = $diff)");
 
-        if ($probe < $count && $this->_keyCompare($node, $probe, $desired) == 0) {
+        if ($probe < $count && self::_keyCompare($node, $probe, $desired) == 0) {
             return $probe;
-        } elseif ($probe + 1 < $count && $this->_keyCompare($node, $probe + 1, $desired) == 0) {
+        } elseif ($probe + 1 < $count && self::_keyCompare($node, $probe + 1, $desired) == 0) {
             return $probe + 1;
-        } elseif ($for_lookup && $probe < $count && $this->_keyCompare($node, $probe, $desired) > 0) {
+        } elseif ($for_lookup && $probe < $count && self::_keyCompare($node, $probe, $desired) > 0) {
             return $probe - 1;
-        } elseif ($for_lookup && $probe + 1 < $count && $this->_keyCompare($node, $probe + 1, $desired) > 0) {
+        } elseif ($for_lookup && $probe + 1 < $count && self::_keyCompare($node, $probe + 1, $desired) > 0) {
             return $probe;
         } else {
-            return self::BINARY_SEARCH_NOT_FOUND;
+            return self::_BINARY_SEARCH_NOT_FOUND;
         }
     }
 
@@ -1340,15 +1307,13 @@ class WPDP_Indexes extends WPDP_Common {
      *
      * 由 _binarySearchLeftmost() 方法修改而来
      *
-     * @access private
-     *
      * @param array  $node        结点
      * @param string $desired     要查找的键
      * @param bool   $for_insert  是否用于插入元素目的
      *
      * @return integer 位置
      */
-    private function _binarySearchRightmost(array &$node, $desired, $for_insert = false) {
+    private static function _binarySearchRightmost(array &$node, $desired, $for_insert = false) {
         assert('is_array($node)');
         assert('is_string($desired)');
         assert('is_bool($for_insert)');
@@ -1357,12 +1322,12 @@ class WPDP_Indexes extends WPDP_Common {
 
         $count = count($node['elements']);
 
-        if ($count == 0 || $this->_keyCompare($node, $count - 1, $desired) < 0) {
+        if ($count == 0 || self::_keyCompare($node, $count - 1, $desired) < 0) {
             trace(__METHOD__, "out of right bound");
-            return ($for_insert ? ($count - 1) : self::BINARY_SEARCH_NOT_FOUND);
-        } elseif ($this->_keyCompare($node, 0, $desired) > 0) {
+            return ($for_insert ? ($count - 1) : self::_BINARY_SEARCH_NOT_FOUND);
+        } elseif (self::_keyCompare($node, 0, $desired) > 0) {
             trace(__METHOD__, "out of left bound");
-            return ($for_insert ? -1 : self::BINARY_SEARCH_NOT_FOUND);
+            return ($for_insert ? -1 : self::_BINARY_SEARCH_NOT_FOUND);
         }
 
         $m = (int)ceil(log($count, 2));
@@ -1371,7 +1336,7 @@ class WPDP_Indexes extends WPDP_Common {
 
         while ($diff > 0) {
             trace(__METHOD__, "probe = $probe (diff = $diff)");
-            if ($probe >= 0 && $this->_keyCompare($node, $probe, $desired) > 0) {
+            if ($probe >= 0 && self::_keyCompare($node, $probe, $desired) > 0) {
                 $probe -= $diff;
             } else {
                 $probe += $diff;
@@ -1382,16 +1347,16 @@ class WPDP_Indexes extends WPDP_Common {
 
         trace(__METHOD__, "probe = $probe (diff = $diff)");
 
-        if ($probe >= 0 && $this->_keyCompare($node, $probe, $desired) == 0) {
+        if ($probe >= 0 && self::_keyCompare($node, $probe, $desired) == 0) {
             return $probe;
-        } elseif ($probe - 1 >= 0 && $this->_keyCompare($node, $probe - 1, $desired) == 0) {
+        } elseif ($probe - 1 >= 0 && self::_keyCompare($node, $probe - 1, $desired) == 0) {
             return $probe - 1;
-        } elseif ($for_insert && $probe >= 0 && $this->_keyCompare($node, $probe, $desired) < 0) {
+        } elseif ($for_insert && $probe >= 0 && self::_keyCompare($node, $probe, $desired) < 0) {
             return $probe;
-        } elseif ($for_insert && $probe - 1 >= 0 && $this->_keyCompare($node, $probe - 1, $desired) < 0) {
+        } elseif ($for_insert && $probe - 1 >= 0 && self::_keyCompare($node, $probe - 1, $desired) < 0) {
             return $probe - 1;
         } else {
-            return self::BINARY_SEARCH_NOT_FOUND;
+            return self::_BINARY_SEARCH_NOT_FOUND;
         }
     }
 
@@ -1404,8 +1369,6 @@ class WPDP_Indexes extends WPDP_Common {
     /**
      * 比较结点中指定下标元素的键与另一个给定键的大小
      *
-     * @access private
-     *
      * @param array   $node   结点
      * @param integer $index  key1 在结点元素数组中的下标
      * @param string  $key    key2
@@ -1413,7 +1376,7 @@ class WPDP_Indexes extends WPDP_Common {
      * @return integer 如果 key1 小于 key2，返回 < 0 的值，大于则返回 > 0 的值，
      *                 等于则返回 0
      */
-    private function _keyCompare(array &$node, $index, $key) {
+    private static function _keyCompare(array &$node, $index, $key) {
         assert('is_array($node)');
         assert('is_int($index)');
         assert('is_string($key)');

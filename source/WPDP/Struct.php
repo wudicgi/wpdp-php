@@ -39,39 +39,232 @@
  * @link       http://www.wudilabs.org/
  */
 class WPDP_Struct {
+    // {{{ 用于文件结构的常量
+
+    /**
+     * 各类型结构的标识常量
+     *
+     * @global integer HEADER_SIGNATURE         头信息的标识
+     * @global integer SECTION_SIGNATURE        区域信息的标识
+     * @global integer METADATA_SIGNATURE       元数据的标识
+     * @global integer INDEX_TABLE_SIGNATURE    索引表的标识
+     * @global integer NODE_SIGNATURE           结点的标识
+     */
+    const HEADER_SIGNATURE = 0x50445057; // WPDP
+    const SECTION_SIGNATURE = 0x54434553; // SECT
+    const METADATA_SIGNATURE = 0x4154454D; // META
+    const INDEX_TABLE_SIGNATURE = 0x54584449; // IDXT
+    const NODE_SIGNATURE = 0x45444F4E; // NODE
+
+    /**
+     * 属性信息的标识常量
+     *
+     * @global integer ATTRIBUTE_SIGNATURE  属性信息的标识
+     */
+    const ATTRIBUTE_SIGNATURE = 0xD5; // 0x61 + 0x74
+
+    const INDEX_SIGNATURE = 0xE1; // 0x69 + 0x78
+
+    /**
+     * 基本块大小常量
+     *
+     * @global integer BASE_BLOCK_SIZE  基本块大小
+     */
+    const BASE_BLOCK_SIZE = 512;
+
+    /**
+     * 各类型结构的块大小常量
+     *
+     * max_element_size = 2 + 8 + 1 + 255 = 266 (for DATATYPE_STRING)
+     * => node_data_size_half >= 266
+     * => node_data_size >= 266 * 2 = 532
+     * => node_block_size >= 532 + 32 = 564
+     * => node_block_size >= 1024 (final min value)
+     *
+     * @global integer HEADER_BLOCK_SIZE        头信息的块大小
+     * @global integer SECTION_BLOCK_SIZE       区域信息的块大小
+     * @global integer METADATA_BLOCK_SIZE      元数据的块大小
+     * @global integer INDEX_TABLE_BLOCK_SIZE   索引表的块大小
+     * @global integer NODE_BLOCK_SIZE          索引结点的块大小
+     */
+    const HEADER_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
+    const SECTION_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
+    const METADATA_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
+    const INDEX_TABLE_BLOCK_SIZE = 512; // BASE_BLOCK_SIZE * 1
+    const NODE_BLOCK_SIZE = 4096; // BASE_BLOCK_SIZE * 8
+
+    /**
+     * 各类型结构的其他大小常量
+     *
+     * @global integer NODE_DATA_SIZE   索引结点的数据区域大小
+     */
+    const NODE_DATA_SIZE = 4064; // NODE_BLOCK_SIZE - 32
+
+    // }}}
+
+    // {{{ 用于头信息的常量
+
+    /**
+     * 头信息数据堆版本常量
+     *
+     * @global integer HEADER_THIS_VERSION  当前数据堆版本
+     */
+    const HEADER_THIS_VERSION = 0x0100; // 0.1.0.0
+
+    /**
+     * 头信息标记常量
+     *
+     * @global integer HEADER_FLAG_NONE     无任何标记
+     * @global integer HEADER_FLAG_RESERVED 保留标记
+     * @global integer HEADER_FLAG_READONLY 是只读文件
+     */
+    const HEADER_FLAG_NONE = 0x0000;
+    const HEADER_FLAG_RESERVED = 0x0001;
+    const HEADER_FLAG_READONLY = 0x0002;
+
+    /**
+     * 头信息文件类型常量
+     *
+     * @global integer HEADER_TYPE_UNDEFINED  未定义
+     * @global integer HEADER_TYPE_CONTENTS   内容文件
+     * @global integer HEADER_TYPE_METADATA   元数据文件
+     * @global integer HEADER_TYPE_INDEXES    索引文件
+     * @global integer HEADER_TYPE_COMPOUND   复合文件 (含内容、元数据与索引)
+     * @global integer HEADER_TYPE_LOOKUP     用于查找条目的文件 (含元数据与索引)
+     */
+    const HEADER_TYPE_UNDEFINED = 0x00;
+    const HEADER_TYPE_CONTENTS = 0x01;
+    const HEADER_TYPE_METADATA = 0x02;
+    const HEADER_TYPE_INDEXES = 0x03;
+    const HEADER_TYPE_COMPOUND = 0x10;
+    const HEADER_TYPE_LOOKUP = 0x20;
+
+    /**
+     * 头信息文件限制常量
+     *
+     * limits: INT32, UINT32, INT64, UINT64
+     *           2GB,    4GB,   8EB,   16EB
+     *    PHP:   YES,     NO,    NO,     NO
+     *     C#:   YES,    YES,   YES,     NO
+     *    C++:   YES,    YES,   YES,     NO
+     *
+     * @global integer HEADER_LIMIT_UNDEFINED 未定义
+     * @global integer HEADER_LIMIT_INT32     文件最大 2GB
+     * @global integer HEADER_LIMIT_UINT32    文件最大 4GB (不使用)
+     * @global integer HEADER_LIMIT_INT64     文件最大 8EB
+     * @global integer HEADER_LIMIT_UINT64    文件最大 16EB (不使用)
+     */
+    const HEADER_LIMIT_UNDEFINED = 0x00;
+    const HEADER_LIMIT_INT32 = 0x01;
+    const HEADER_LIMIT_UINT32 = 0x02;
+    const HEADER_LIMIT_INT64 = 0x03;
+    const HEADER_LIMIT_UINT64 = 0x04;
+
+    // }}}
+
+    // {{{ 用于区域信息的常量
+
+    /**
+     * 区域类型常量
+     *
+     * 为了可以按位组合，方便表示含有哪些区域，采用 2 的整次幂
+     *
+     * @global integer SECTION_TYPE_CONTENTS    内容
+     * @global integer SECTION_TYPE_METADATA    元数据
+     * @global integer SECTION_TYPE_INDEXES     索引
+     */
+    const SECTION_TYPE_UNDEFINED = 0x00;
+    const SECTION_TYPE_CONTENTS = 0x01;
+    const SECTION_TYPE_METADATA = 0x02;
+    const SECTION_TYPE_INDEXES = 0x04;
+
+    // }}}
+
+    // {{{ 用于内容的常量
+
+    /**
+     * 内容压缩类型常量
+     *
+     * @global integer CONTENTS_COMPRESSION_NONE     不压缩
+     * @global integer CONTENTS_COMPRESSION_GZIP     Gzip
+     * @global integer CONTENTS_COMPRESSION_BZIP2    Bzip2
+     */
+    const CONTENTS_COMPRESSION_NONE = 0x00;
+    const CONTENTS_COMPRESSION_GZIP = 0x01;
+    const CONTENTS_COMPRESSION_BZIP2 = 0x02;
+
+    /**
+     * 内容校验类型常量
+     *
+     * @global integer CONTENTS_CHECKSUM_NONE    不校验
+     * @global integer CONTENTS_CHECKSUM_CRC32   CRC32
+     * @global integer CONTENTS_CHECKSUM_MD5     MD5
+     * @global integer CONTENTS_CHECKSUM_SHA1    SHA1
+     */
+    const CONTENTS_CHECKSUM_NONE = 0x00;
+    const CONTENTS_CHECKSUM_CRC32 = 0x01;
+    const CONTENTS_CHECKSUM_MD5 = 0x02;
+    const CONTENTS_CHECKSUM_SHA1 = 0x03;
+
+    // }}}
+
+    // {{{ 用于元数据的常量
+
+    /**
+     * 元数据标记常量
+     *
+     * @global integer METADATA_FLAG_NONE       无任何标记
+     * @global integer METADATA_FLAG_RESERVED   保留标记
+     * @global integer METADATA_FLAG_COMPRESSED 条目内容已压缩, to be noticed
+     */
+    const METADATA_FLAG_NONE = 0x0000;
+    const METADATA_FLAG_RESERVED = 0x0001;
+    const METADATA_FLAG_COMPRESSED = 0x0010;
+
+    /**
+     * 属性标记常量
+     *
+     * @global integer ATTRIBUTE_FLAG_NONE      无任何标记
+     * @global integer ATTRIBUTE_FLAG_INDEXED   索引标记
+     */
+    const ATTRIBUTE_FLAG_NONE = 0x00;
+    const ATTRIBUTE_FLAG_INDEXED = 0x01;
+
+    // }}}
+
     private static $_structs = array(
         'header' => array(
             'blocks' => array(
                 'signature' => 'V', // 块标识
                 'version' => 'v', // 数据堆版本
-                'flags' => 'v', // flags
+                'flags' => 'v', // 数据堆标志
                 'type' => 'C', // 文件类型
                 'limit' => 'C', // 文件限制
-                'encoding' => 'C', // 文本编码
-                '__reserved_char' => 'C', // 保留
+                '__reserved_char_1' => 'C', // 保留
+                '__reserved_char_2' => 'C', // 保留
                 'ofsContents' => 'V', // 条目的偏移量
-                'lenContents' => 'V',
+                    '__ofsContents_high' => 'V',
                 'ofsMetadata' => 'V', // 条目的偏移量
-                'lenMetadata' => 'V',
+                    '__ofsMetadata_high' => 'V',
                 'ofsIndexes' => 'V', // 索引的偏移量
-                'lenIndexes' => 'V',
+                    '__ofsIndexes_high' => 'V',
                 '__padding' => 'a476' // 填充块到 512 bytes
             ),
 #ifndef BUILD_READONLY
             'default' => array(
-                'signature' => WPDP::HEADER_SIGNATURE,
-                'version' => WPDP::HEADER_THIS_VERSION,
-                'flags' => WPDP::HEADER_FLAG_NONE,
-                'type' => WPDP::FILE_TYPE_UNDEFINED,
-                'limit' => WPDP::FILE_LIMIT_INT32,
-                'encoding' => WPDP::ENCODING_UTF8,
-                '__reserved_char' => 0,
+                'signature' => self::HEADER_SIGNATURE,
+                'version' => self::HEADER_THIS_VERSION,
+                'flags' => self::HEADER_FLAG_NONE,
+                'type' => self::HEADER_TYPE_UNDEFINED,
+                'limit' => self::HEADER_LIMIT_INT32,
+                '__reserved_char_1' => 0,
+                '__reserved_char_2' => 0,
                 'ofsContents' => 0,
-                'lenContents' => 0,
+                    '__ofsContents_high' => 0,
                 'ofsMetadata' => 0,
-                'lenMetadata' => 0,
+                    '__ofsMetadata_high' => 0,
                 'ofsIndexes' => 0,
-                'lenIndexes' => 0,
+                    '__ofsIndexes_high' => 0,
                 '__padding' => '',
             ),
 #endif
@@ -81,19 +274,25 @@ class WPDP_Struct {
                 'signature' => 'V', // 块标识
                 'type' => 'C', // 区域类型
                 '__reserved_char' => 'C', // 保留
+                'length' => 'V',
+                    '__length_high' => 'V',
                 'ofsTable' => 'V',
+                    '__ofsTable_high' => 'V',
                 'ofsFirst' => 'V',
-                'ofsLast' => 'V',
-                '__padding' => 'a494' // 填充块到 512 bytes
+                    '__ofsFirst_high' => 'V',
+                '__padding' => 'a482' // 填充块到 512 bytes
             ),
 #ifndef BUILD_READONLY
             'default' => array(
-                'signature' => WPDP::SECTION_SIGNATURE,
-                'type' => WPDP::SECTION_TYPE_UNDEFINED,
+                'signature' => self::SECTION_SIGNATURE,
+                'type' => self::SECTION_TYPE_UNDEFINED,
                 '__reserved_char' => 0,
+                'length' => 0,
+                    '__length_high' => 0,
                 'ofsTable' => 0,
+                    '__ofsTable_high' => 0,
                 'ofsFirst' => 0,
-                'ofsLast' => 0,
+                    '__ofsFirst_high' => 0,
                 '__padding' => ''
             ),
 #endif
@@ -101,35 +300,45 @@ class WPDP_Struct {
         'metadata' => array(
             'blocks' => array(
                 'signature' => 'V', // 块标识
-                'lenBlock' => 'v', // 块长度
-                'lenActual' => 'v', // 实际内容长度
-                'flags' => 'v', // flags
+                'lenBlock' => 'V', // 块长度
+                'lenActual' => 'V', // 实际内容长度
+                'flags' => 'v', // 元数据标记
                 'compression' => 'C', // 压缩算法
                 'checksum' => 'C', // 校验算法
                 'lenOriginal' => 'V', // 内容原始长度
+                    '__lenOriginal_high' => 'V',
                 'lenCompressed' => 'V', // 内容压缩后长度
+                    '__lenCompressed_high' => 'V',
                 'sizeChunk' => 'V', // 数据块大小
                 'numChunk' => 'V', // 数据块数量
                 'ofsContents' => 'V', // 第一个分块的偏移量
+                    '__ofsContents_high' => 'V',
                 'ofsOffsetTable' => 'V', // 分块偏移量表的偏移量
+                    '__ofsOffsetTable_high' => 'V',
                 'ofsChecksumTable' => 'V', // 分块校验值表的偏移量
-                '__padding' => 'a56' // 填充块头部到 96 bytes
+                    '__ofsChecksumTable_high' => 'V',
+                '__padding' => 'a32' // 填充块头部到 96 bytes
             ),
 #ifndef BUILD_READONLY
             'default' => array(
-                'signature' => WPDP::METADATA_SIGNATURE,
+                'signature' => self::METADATA_SIGNATURE,
                 'lenBlock' => 0,
                 'lenActual' => 0,
-                'flags' => WPDP::METADATA_FLAG_NONE,
-                'compression' => WPDP::COMPRESSION_NONE,
-                'checksum' => WPDP::CHECKSUM_NONE,
+                'flags' => self::METADATA_FLAG_NONE,
+                'compression' => self::CONTENTS_COMPRESSION_NONE,
+                'checksum' => self::CONTENTS_CHECKSUM_NONE,
                 'lenOriginal' => 0,
+                    '__lenOriginal_high' => 0,
                 'lenCompressed' => 0,
+                    '__lenCompressed_high' => 0,
                 'sizeChunk' => 0,
                 'numChunk' => 0,
                 'ofsContents' => 0,
+                    '__ofsContents_high' => 0,
                 'ofsOffsetTable' => 0,
+                    '__ofsOffsetTable_high' => 0,
                 'ofsChecksumTable' => 0,
+                    '__ofsChecksumTable_high' => 0,
                 '__padding' => ''
             ),
 #endif
@@ -137,13 +346,13 @@ class WPDP_Struct {
         'index_table' => array(
             'blocks' => array(
                 'signature' => 'V', // 块标识
-                'lenBlock' => 'v', // 块长度
-                'lenActual' => 'v', // 实际内容长度
-                '__padding' => 'a24' // 填充块头部到 32 bytes
+                'lenBlock' => 'V', // 块长度
+                'lenActual' => 'V', // 实际内容长度
+                '__padding' => 'a20' // 填充块头部到 32 bytes
             ),
 #ifndef BUILD_READONLY
             'default' => array(
-                'signature' => WPDP::INDEX_TABLE_SIGNATURE,
+                'signature' => self::INDEX_TABLE_SIGNATURE,
                 'lenBlock' => 0,
                 'lenActual' => 0,
                 '__padding' => ''
@@ -156,19 +365,21 @@ class WPDP_Struct {
                 'isLeaf' => 'C', // 是否为叶子结点
                 '__reserved_char' => 'C',
                 'numElement' => 'v', // 元素数量
-                'ofsExtra' => 'V', // 补充偏移量 (局部)
                 // 对于叶子结点，ofsExtra 为下一个相邻叶子结点的偏移量
                 // 对于普通结点，ofsExtra 为比第一个键还要小的键所在结点的偏移量
-                '__padding' => 'a20' // 填充块头部到 32 bytes
+                'ofsExtra' => 'V', // 补充偏移量 (局部)
+                    '__ofsExtra_high' => 'V',
+                '__padding' => 'a16' // 填充块头部到 32 bytes
                 // to be noticed, related to NODE_DATA_SIZE
             ),
 #ifndef BUILD_READONLY
             'default' => array(
-                'signature' => WPDP::NODE_SIGNATURE,
+                'signature' => self::NODE_SIGNATURE,
                 'isLeaf' => 0,
                 '__reserved_char' => 0,
                 'numElement' => 0,
                 'ofsExtra' => 0,
+                    '__ofsExtra_high' => 0,
                 '__padding' => ''
             ),
 #endif
@@ -192,6 +403,7 @@ class WPDP_Struct {
             }
             $struct['format'] = implode('/', $parts);
             $struct['size'] = $size;
+            assert('$struct[\'size\'] % 32 == 0');
         }
         unset($struct);
     }
@@ -248,9 +460,9 @@ class WPDP_Struct {
 
         $object = self::_unpackFixed('header', $stream);
 
-        if ($object['signature'] != WPDP::HEADER_SIGNATURE) {
+        if ($object['signature'] != self::HEADER_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
-                $object['signature'], WPDP::HEADER_SIGNATURE));
+                $object['signature'], self::HEADER_SIGNATURE));
         }
 
         return $object;
@@ -273,9 +485,9 @@ class WPDP_Struct {
 
         $object = self::_unpackFixed('section', $stream);
 
-        if ($object['signature'] != WPDP::SECTION_SIGNATURE) {
+        if ($object['signature'] != self::SECTION_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
-                $object['signature'], WPDP::SECTION_SIGNATURE));
+                $object['signature'], self::SECTION_SIGNATURE));
         }
 
         return $object;
@@ -300,9 +512,9 @@ class WPDP_Struct {
 
         $object = self::_unpackVariant('metadata', $stream, $noblob);
 
-        if ($object['signature'] != WPDP::METADATA_SIGNATURE) {
+        if ($object['signature'] != self::METADATA_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
-                $object['signature'], WPDP::METADATA_SIGNATURE));
+                $object['signature'], self::METADATA_SIGNATURE));
         }
 
         if ($noblob) {
@@ -334,9 +546,9 @@ class WPDP_Struct {
 
         $object = self::_unpackVariant('index_table', $stream, $noblob);
 
-        if ($object['signature'] != WPDP::INDEX_TABLE_SIGNATURE) {
+        if ($object['signature'] != self::INDEX_TABLE_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
-                $object['signature'], WPDP::INDEX_TABLE_SIGNATURE));
+                $object['signature'], self::INDEX_TABLE_SIGNATURE));
         }
 
         if ($noblob) {
@@ -364,11 +576,12 @@ class WPDP_Struct {
         $string = '';
         foreach ($object['elements'] as $elem) {
             $string = pack('C', strlen($elem['key'])) . $elem['key'] . $string;
-            $blob .= pack('v', WPDP::NODE_BLOCK_SIZE - strlen($string)); // pointer to key
+            $blob .= pack('v', self::NODE_BLOCK_SIZE - strlen($string)); // pointer to key
             $blob .= pack('V', $elem['value']); // offset
+            $blob .= pack('V', 0); // offset_high
         }
         // 在 string 前补充 NULL 值使块长度达到 NODE_BLOCK_SIZE
-        $blob .= str_pad($string, WPDP::NODE_DATA_SIZE - strlen($blob), "\x00", STR_PAD_LEFT);
+        $blob .= str_pad($string, self::NODE_DATA_SIZE - strlen($blob), "\x00", STR_PAD_LEFT);
 
         $data = '';
         // 追加块头部信息
@@ -383,7 +596,7 @@ class WPDP_Struct {
         // 追加可变长度区域数据
         $data .= $blob;
 
-        assert('strlen($data) == WPDP::NODE_BLOCK_SIZE');
+        assert('strlen($data) == self::NODE_BLOCK_SIZE');
 
         return $data;
     }
@@ -394,8 +607,8 @@ class WPDP_Struct {
         assert('is_a($stream, \'WPIO_Stream\')');
 
         $offset = $stream->tell();
-        $data = $stream->read(WPDP::NODE_BLOCK_SIZE);
-        WPDP_StreamOperationException::checkIsReadExactly(strlen($data), WPDP::NODE_BLOCK_SIZE);
+        $data = $stream->read(self::NODE_BLOCK_SIZE);
+        WPDP_StreamOperationException::checkIsReadExactly(strlen($data), self::NODE_BLOCK_SIZE);
 
         // 读取块头部信息
         $head = substr($data, 0, self::$_structs['node']['size']);
@@ -406,26 +619,26 @@ class WPDP_Struct {
         // 将 isLeaf 的值由 int 型的 0, 1 转换为 bool 型
         $object['isLeaf'] = (bool)$object['isLeaf'];
 
-        if ($object['signature'] != WPDP::NODE_SIGNATURE) {
+        if ($object['signature'] != self::NODE_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X @ 0x%X",
-                $object['signature'], WPDP::NODE_SIGNATURE, $offset));
+                $object['signature'], self::NODE_SIGNATURE, $offset));
         }
 
         $object['elements'] = array();
         $object['_size'] = 0;
 
         $blob = substr($data, self::$_structs['node']['size'],
-                       WPDP::NODE_BLOCK_SIZE - self::$_structs['node']['size']);
+                       self::NODE_BLOCK_SIZE - self::$_structs['node']['size']);
 
         $n = 0;
         $pos_base = 0;
         $head_size = self::$_structs['node']['size'];
         while ($n < $object['numElement']) {
-            $temp = unpack('vstr/Voffset', substr($blob, $pos_base, 6));
+            $temp = unpack('vstr/Voffset/Voffset_high', substr($blob, $pos_base, 10));
             $key = substr($blob, $temp['str'] + 1 - $head_size, ord($blob[$temp['str'] - $head_size]));
             $object['elements'][] = array('key' => $key, 'value' => $temp['offset']);
-            $object['_size'] += 2 + 4 + 1 + strlen($key);
-            $pos_base += 6;
+            $object['_size'] += 2 + 8 + 1 + strlen($key);
+            $pos_base += 10;
             $n++;
         }
 
@@ -551,8 +764,6 @@ class WPDP_Struct {
     /**
      * 编码元数据的二进制数据
      *
-     * @access private
-     *
      * @param array $object  元数据
      */
     private static function _packMetadataBlob(array &$object) {
@@ -561,12 +772,12 @@ class WPDP_Struct {
         $blob = '';
 
         foreach ($object['attributes'] as $attr) {
-            $flag = WPDP::ATTRIBUTE_FLAG_NONE;
+            $flag = self::ATTRIBUTE_FLAG_NONE;
             if ($attr['index']) {
-                $flag |= WPDP::ATTRIBUTE_FLAG_INDEXED;
+                $flag |= self::ATTRIBUTE_FLAG_INDEXED;
             }
 
-            $blob .= pack('C', WPDP::ATTRIBUTE_SIGNATURE);
+            $blob .= pack('C', self::ATTRIBUTE_SIGNATURE);
             $blob .= pack('C', $flag);
             $blob .= pack('C', strlen($attr['name']));
             $blob .= $attr['name'];
@@ -586,8 +797,6 @@ class WPDP_Struct {
     /**
      * 解码元数据的二进制数据
      *
-     * @access private
-     *
      * @param array $object  元数据
      */
     private static function _unpackMetadataBlob($blob) {
@@ -601,12 +810,12 @@ class WPDP_Struct {
             $temp = unpack('Csignature/Cflag', substr($blob, $i, 2));
             $i += 2;
 
-            if ($temp['signature'] != WPDP::ATTRIBUTE_SIGNATURE) {
+            if ($temp['signature'] != self::ATTRIBUTE_SIGNATURE) {
                 throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
-                    $temp['signature'], WPDP::ATTRIBUTE_SIGNATURE));
+                    $temp['signature'], self::ATTRIBUTE_SIGNATURE));
             }
 
-            $index = (bool)($temp['flag'] & WPDP::ATTRIBUTE_FLAG_INDEXED);
+            $index = (bool)($temp['flag'] & self::ATTRIBUTE_FLAG_INDEXED);
 
             $temp = unpack('Clen', $blob[$i]);
             $i += 1;
@@ -636,9 +845,11 @@ class WPDP_Struct {
         $blob = '';
 
         foreach ($object['indexes'] as $index) {
+            $blob .= pack('C', self::INDEX_SIGNATURE);
             $blob .= pack('C', strlen($index['name']));
             $blob .= $index['name'];
             $blob .= pack('V', $index['ofsRoot']);
+            $blob .= pack('V', 0); // ofsRoot_high
         }
 
         return $blob;
@@ -654,13 +865,21 @@ class WPDP_Struct {
 
         $i = 0;
         while ($i < $length) {
+            $temp = unpack('Csignature', $blob[$i]);
+            $i += 1;
+
+            if ($temp['signature'] != self::INDEX_SIGNATURE) {
+                throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
+                    $temp['signature'], self::INDEX_SIGNATURE));
+            }
+
             $temp = unpack('Clen', $blob[$i]);
             $i += 1;
             $name = substr($blob, $i, $temp['len']);
             $i += $temp['len'];
 
-            $temp2 = unpack('VofsRoot', substr($blob, $i, 4));
-            $i += 4;
+            $temp2 = unpack('VofsRoot/VofsRoot_high', substr($blob, $i, 8));
+            $i += 8;
             $offset = $temp2['ofsRoot'];
 
             $indexes[$name] = array(
@@ -672,6 +891,31 @@ class WPDP_Struct {
         return $indexes;
     }
 
+    // {{{ getSectionOffsetName()
+
+    /**
+     * 获取区域的绝对偏移量在结构中的名称
+     *
+     * @param integer $type 区域类型
+     *
+     * @return string   区域的绝对偏移量在结构中的名称
+     */
+    public static function getSectionOffsetName($type) {
+        static $offset_names = array(
+            WPDP_Struct::SECTION_TYPE_CONTENTS => 'ofsContents',
+            WPDP_Struct::SECTION_TYPE_METADATA => 'ofsMetadata',
+            WPDP_Struct::SECTION_TYPE_INDEXES => 'ofsIndexes'
+        );
+
+        assert('is_int($type)');
+
+        assert('in_array($type, array(WPDP_Struct::SECTION_TYPE_CONTENTS, WPDP_Struct::SECTION_TYPE_METADATA, WPDP_Struct::SECTION_TYPE_INDEXES))');
+
+        return $offset_names[$type];
+    }
+
+    // }}}
+
     // 获取可变长度型结构默认块大小
     private static function _getDefaultBlockSize($type) {
         assert('is_string($type)');
@@ -681,10 +925,10 @@ class WPDP_Struct {
 
         switch ($type) {
             case 'metadata':
-                $block_size = WPDP::METADATA_BLOCK_SIZE;
+                $block_size = self::METADATA_BLOCK_SIZE;
                 break;
             case 'index_table':
-                $block_size = WPDP::INDEX_TABLE_BLOCK_SIZE;
+                $block_size = self::INDEX_TABLE_BLOCK_SIZE;
                 break;
             // DEBUG: BEGIN ASSERT
             default:

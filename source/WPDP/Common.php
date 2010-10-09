@@ -44,20 +44,20 @@ abstract class WPDP_Common {
     /**
      * 定位方式常量
      *
-     * @global integer ABSOLUTE 绝对偏移量定位
-     * @global integer RELATIVE 相对偏移量定位
+     * @global integer _ABSOLUTE 绝对偏移量定位
+     * @global integer _RELATIVE 相对偏移量定位
      */
-    const ABSOLUTE = -1;
-    const RELATIVE = -2;
+    const _ABSOLUTE = -1;
+    const _RELATIVE = -2;
 
     // }}}
 
     // {{{ properties
 
+    protected $_open_mode = null;
+
     /**
      * 文件操作对象
-     *
-     * @access protected
      *
      * @var object
      */
@@ -66,8 +66,6 @@ abstract class WPDP_Common {
     /**
      * 偏移量基数
      *
-     * @access protected
-     *
      * @var integer
      */
     protected $_offset_base;
@@ -75,16 +73,12 @@ abstract class WPDP_Common {
     /**
      * 头信息
      *
-     * @access protected
-     *
      * @var array
      */
     protected $_header;
 
     /**
      * 区域信息
-     *
-     * @access protected
      *
      * @var array
      */
@@ -97,51 +91,19 @@ abstract class WPDP_Common {
     /**
      * 构造函数
      *
-     * @access public
-     *
      * @param integer $type     区域类型
      * @param object  $stream   文件操作对象
      * @param integer $mode     打开模式
-     *
-     * @throws WPDP_InternalException
      */
     function __construct($type, WPIO_Stream $stream, $mode) {
         assert('is_int($type)');
         assert('is_a($stream, \'WPIO_Stream\')');
         assert('is_int($mode)');
 
-        assert('in_array($type, array(WPDP::SECTION_TYPE_CONTENTS, WPDP::SECTION_TYPE_METADATA, WPDP::SECTION_TYPE_INDEXES))');
+        assert('in_array($type, array(WPDP_Struct::SECTION_TYPE_CONTENTS, WPDP_Struct::SECTION_TYPE_METADATA, WPDP_Struct::SECTION_TYPE_INDEXES))');
         assert('in_array($mode, array(WPDP::MODE_READONLY, WPDP::MODE_READWRITE))');
 
-        // 检查区域类型参数
-        if ($type != WPDP::SECTION_TYPE_CONTENTS && $type != WPDP::SECTION_TYPE_METADATA
-            && $type != WPDP::SECTION_TYPE_INDEXES) {
-            throw new WPDP_InternalException("Invalid section type: $type");
-        }
-
-        // 检查打开模式参数
-        if ($mode != WPDP::MODE_READONLY && $mode != WPDP::MODE_READWRITE) {
-            throw new WPDP_InternalException("Invalid open mode: $mode");
-        }
-
-#ifdef BUILD_READONLY
-/*
-        if ($mode != WPDP::MODE_READONLY) {
-            throw new WPDP_InternalException("This is a readonly build of WPDP");
-        }
-*/
-#endif
-
-        // 检查内容流的可读性、可定位性与可写性
-        if (!$stream->isReadable()) {
-            throw new WPDP_InternalException("The specified stream is not readable");
-        }
-        if (!$stream->isSeekable()) {
-            throw new WPDP_InternalException("The specified stream is not seekable");
-        }
-        if (($mode == WPDP::MODE_READWRITE) && !$stream->isWritable()) {
-            throw new WPDP_InternalException("The specified stream is not writable");
-        }
+        $this->_open_mode = $mode;
 
         $this->_stream = $stream;
 
@@ -159,51 +121,23 @@ abstract class WPDP_Common {
     /**
      * 创建文件
      *
-     * @access public
-     *
      * @param integer $file_type    文件类型
      * @param integer $section_type 区域类型
      * @param object  $stream       文件操作对象
-     *
-     * @throws WPDP_FileOpenException
-     * @throws WPDP_InternalException
      */
-    public static function create($file_type, $section_type, WPIO_Stream $stream) {
+    protected static function create($file_type, $section_type, WPIO_Stream $stream) {
         assert('is_int($file_type)');
         assert('is_int($section_type)');
         assert('is_a($stream, \'WPIO_Stream\')');
 
-        assert('in_array($file_type, array(WPDP::FILE_TYPE_CONTENTS, WPDP::FILE_TYPE_METADATA, WPDP::FILE_TYPE_INDEXES))');
-        assert('in_array($section_type, array(WPDP::SECTION_TYPE_CONTENTS, WPDP::SECTION_TYPE_METADATA, WPDP::SECTION_TYPE_INDEXES))');
+        assert('in_array($file_type, array(WPDP_Struct::HEADER_TYPE_CONTENTS, WPDP_Struct::HEADER_TYPE_METADATA, WPDP_Struct::HEADER_TYPE_INDEXES))');
+        assert('in_array($section_type, array(WPDP_Struct::SECTION_TYPE_CONTENTS, WPDP_Struct::SECTION_TYPE_METADATA, WPDP_Struct::SECTION_TYPE_INDEXES))');
 
-        // 检查文件类型参数
-        if ($file_type != WPDP::FILE_TYPE_CONTENTS && $file_type != WPDP::FILE_TYPE_METADATA
-            && $file_type != WPDP::FILE_TYPE_INDEXES) {
-            throw new WPDP_InternalException("Invalid file type: $file_type");
-        }
-
-        // 检查区域类型参数
-        if ($section_type != WPDP::SECTION_TYPE_CONTENTS && $section_type != WPDP::SECTION_TYPE_METADATA
-            && $section_type != WPDP::SECTION_TYPE_INDEXES) {
-            throw new WPDP_InternalException("Invalid section type: $section_type");
-        }
-
-        // 检查内容流的可读性、可写性与可定位性
-        if (!$stream->isReadable()) {
-            throw new WPDP_InternalException("The specified stream is not readable");
-        }
-        if (!$stream->isSeekable()) {
-            throw new WPDP_InternalException("The specified stream is not seekable");
-        }
-        if (!$stream->isWritable()) {
-            throw new WPDP_InternalException("The specified stream is not writable");
-        }
-
-        $section_offset_name = self::_getSectionOffsetName($section_type);
+        $section_offset_name = WPDP_Struct::getSectionOffsetName($section_type);
 
         $header = WPDP_Struct::create('header');
         $header['type'] = $file_type;
-        $header[$section_offset_name] = WPDP::HEADER_BLOCK_SIZE;
+        $header[$section_offset_name] = WPDP_Struct::HEADER_BLOCK_SIZE;
 
         $section = WPDP_Struct::create('section');
         $section['type'] = $section_type;
@@ -216,6 +150,9 @@ abstract class WPDP_Common {
         WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_header));
         $len_written = $stream->write($data_section);
         WPDP_StreamOperationException::checkIsWriteExactly($len_written, strlen($data_section));
+
+        // 写入了重要的结构和信息，但可能接下来还有其他操作，
+        // 所以写入流的缓冲区的操作由继承类中的方法进行
     }
 
     // }}}
@@ -228,8 +165,6 @@ abstract class WPDP_Common {
 
     /**
      * 将缓冲内容写入文件
-     *
-     * @access public
      */
     abstract public function flush();
 
@@ -237,15 +172,19 @@ abstract class WPDP_Common {
 
 #endif
 
+    abstract public function getSectionLength();
+
+    public function getStream() {
+        return $this->_stream;
+    }
+
     // {{{ _readHeader()
 
     /**
      * 读取头信息
-     *
-     * @access protected
      */
     protected function _readHeader() {
-        $this->_seek(0, WPIO::SEEK_SET, self::ABSOLUTE);
+        $this->_seek(0, WPIO::SEEK_SET, self::_ABSOLUTE);
         $this->_header = WPDP_Struct::unpackHeader($this->_stream);
     }
 
@@ -257,12 +196,10 @@ abstract class WPDP_Common {
 
     /**
      * 写入头信息
-     *
-     * @access protected
      */
     protected function _writeHeader() {
         $data_header = WPDP_Struct::packHeader($this->_header);
-        $this->_write($data_header, 0, self::ABSOLUTE);
+        $this->_write($data_header, 0, self::_ABSOLUTE);
     }
 
     // }}}
@@ -274,18 +211,16 @@ abstract class WPDP_Common {
     /**
      * 读取区域信息
      *
-     * @access protected
-     *
      * @param integer $type 区域类型
      */
     protected function _readSection($type) {
         assert('is_int($type)');
 
-        assert('in_array($type, array(WPDP::SECTION_TYPE_CONTENTS, WPDP::SECTION_TYPE_METADATA, WPDP::SECTION_TYPE_INDEXES))');
+        assert('in_array($type, array(WPDP_Struct::SECTION_TYPE_CONTENTS, WPDP_Struct::SECTION_TYPE_METADATA, WPDP_Struct::SECTION_TYPE_INDEXES))');
 
         $offset = $this->_getSectionOffset($type);
 
-        $this->_seek($offset, WPIO::SEEK_SET, self::ABSOLUTE);
+        $this->_seek($offset, WPIO::SEEK_SET, self::_ABSOLUTE);
         $this->_section = WPDP_Struct::unpackSection($this->_stream);
         $this->_offset_base = $offset;
     }
@@ -298,13 +233,11 @@ abstract class WPDP_Common {
 
     /**
      * 写入区域信息
-     *
-     * @access protected
      */
     protected function _writeSection() {
         $offset = $this->_getSectionOffset($this->_section['type']);
         $data_section = WPDP_Struct::packSection($this->_section);
-        $this->_seek($offset, WPIO::SEEK_SET, self::ABSOLUTE);
+        $this->_seek($offset, WPIO::SEEK_SET, self::_ABSOLUTE);
         $this->_write($data_section);
     }
 
@@ -312,74 +245,22 @@ abstract class WPDP_Common {
 
 #endif
 
-    // {{{ _getSectionOffset()
-
-    /**
-     * 获取区域的绝对偏移量
-     *
-     * @access private
-     *
-     * @param integer $type 区域类型
-     *
-     * @return integer  区域的绝对偏移量
-     */
-    private function _getSectionOffset($type) {
-        assert('is_int($type)');
-
-        assert('in_array($type, array(WPDP::SECTION_TYPE_CONTENTS, WPDP::SECTION_TYPE_METADATA, WPDP::SECTION_TYPE_INDEXES))');
-
-        $offset = $this->_header[self::_getSectionOffsetName($type)];
-
-        return $offset;
-    }
-
-    // }}}
-
-    // {{{ _getSectionOffsetName()
-
-    /**
-     * 获取区域的绝对偏移量在结构中的名称
-     *
-     * @access private
-     *
-     * @param integer $type 区域类型
-     *
-     * @return string   区域的绝对偏移量在结构中的名称
-     */
-    private static function _getSectionOffsetName($type) {
-        static $offset_names = array(
-            WPDP::SECTION_TYPE_CONTENTS => 'ofsContents',
-            WPDP::SECTION_TYPE_METADATA => 'ofsMetadata',
-            WPDP::SECTION_TYPE_INDEXES => 'ofsIndexes'
-        );
-
-        assert('is_int($type)');
-
-        assert('in_array($type, array(WPDP::SECTION_TYPE_CONTENTS, WPDP::SECTION_TYPE_METADATA, WPDP::SECTION_TYPE_INDEXES))');
-
-        return $offset_names[$type];
-    }
-
-    // }}}
-
     // {{{ _tell()
 
     /**
      * 获取当前位置的偏移量
      *
-     * @access protected
-     *
      * @param integer $offset_type  偏移量类型 (可选，默认为绝对偏移量)
      *
      * @return integer 偏移量
      */
-    protected function _tell($offset_type = self::ABSOLUTE) {
+    protected function _tell($offset_type = self::_ABSOLUTE) {
         assert('is_int($offset_type)');
 
-        assert('in_array($offset_type, array(self::ABSOLUTE, self::RELATIVE))');
+        assert('in_array($offset_type, array(self::_ABSOLUTE, self::_RELATIVE))');
 
         $offset = $this->_stream->tell();
-        if ($offset_type == self::RELATIVE) {
+        if ($offset_type == self::_RELATIVE) {
             $offset = $this->_toRelativeOffset($offset);
         }
         return $offset;
@@ -392,23 +273,21 @@ abstract class WPDP_Common {
     /**
      * 定位到指定偏移量
      *
-     * @access protected
-     *
      * @param integer $offset       偏移量
      * @param integer $origin       whence (可选，默认为 WPIO::SEEK_SET)
      * @param integer $offset_type  偏移量类型 (可选，默认为绝对偏移量)
      *
      * @return bool 总是 true
      */
-    protected function _seek($offset, $origin = WPIO::SEEK_SET, $offset_type = self::ABSOLUTE) {
+    protected function _seek($offset, $origin = WPIO::SEEK_SET, $offset_type = self::_ABSOLUTE) {
         assert('is_int($offset)');
         assert('is_int($origin)');
         assert('is_int($offset_type)');
 
         assert('in_array($origin, array(WPIO::SEEK_SET, WPIO::SEEK_CUR, WPIO::SEEK_END))');
-        assert('in_array($offset_type, array(self::ABSOLUTE, self::RELATIVE))');
+        assert('in_array($offset_type, array(self::_ABSOLUTE, self::_RELATIVE))');
 
-        if ($offset_type == self::RELATIVE) {
+        if ($offset_type == self::_RELATIVE) {
             assert('$origin == WPIO::SEEK_SET');
             $origin = WPIO::SEEK_SET;
             $offset = $this->_toAbsoluteOffset($offset);
@@ -426,22 +305,18 @@ abstract class WPDP_Common {
     /**
      * 从指定偏移量 (或当前位置) 开始读取指定长度的数据
      *
-     * 本方法未被使用
-     *
-     * @access protected
-     *
      * @param integer $length       要读取数据的长度
      * @param integer $offset       偏移量 (可选，默认为 null，即从当前位置开始读取)
      * @param integer $offset_type  偏移量类型 (可选，默认为绝对偏移量)
      *
      * @return string 读取到的数据
      */
-    protected function _read($length, $offset = null, $offset_type = self::ABSOLUTE) {
+    protected function _read($length, $offset = null, $offset_type = self::_ABSOLUTE) {
         assert('is_int($length)');
         assert('is_int($offset) || is_null($offset)');
         assert('is_int($offset_type)');
 
-        assert('in_array($offset_type, array(self::ABSOLUTE, self::RELATIVE))');
+        assert('in_array($offset_type, array(self::_ABSOLUTE, self::_RELATIVE))');
 
         if ($offset !== null) {
             $this->_seek($offset, WPIO::SEEK_SET, $offset_type);
@@ -462,20 +337,18 @@ abstract class WPDP_Common {
     /**
      * 在指定偏移量 (或当前位置) 写入指定长度的数据
      *
-     * @access protected
-     *
      * @param string  $data         要写入的数据
      * @param integer $offset       偏移量 (可选，默认为 null，即在当前位置写入)
      * @param integer $offset_type  偏移量类型 (可选，默认为绝对偏移量)
      *
      * @return bool 总是 true
      */
-    protected function _write($data, $offset = null, $offset_type = self::ABSOLUTE) {
+    protected function _write($data, $offset = null, $offset_type = self::_ABSOLUTE) {
         assert('is_string($data)');
         assert('is_int($offset) || is_null($offset)');
         assert('is_int($offset_type)');
 
-        assert('in_array($offset_type, array(self::ABSOLUTE, self::RELATIVE))');
+        assert('in_array($offset_type, array(self::_ABSOLUTE, self::_RELATIVE))');
 
         if ($offset !== null) {
             $this->_seek($offset, WPIO::SEEK_SET, $offset_type);
@@ -491,12 +364,31 @@ abstract class WPDP_Common {
 
 #endif
 
+    // {{{ _getSectionOffset()
+
+    /**
+     * 获取区域的绝对偏移量
+     *
+     * @param integer $type 区域类型
+     *
+     * @return integer  区域的绝对偏移量
+     */
+    private function _getSectionOffset($type) {
+        assert('is_int($type)');
+
+        assert('in_array($type, array(WPDP_Struct::SECTION_TYPE_CONTENTS, WPDP_Struct::SECTION_TYPE_METADATA, WPDP_Struct::SECTION_TYPE_INDEXES))');
+
+        $offset = $this->_header[WPDP_Struct::getSectionOffsetName($type)];
+
+        return $offset;
+    }
+
+    // }}}
+
     // {{{ _toAbsoluteOffset()
 
     /**
      * 将相对偏移量转换为绝对偏移量
-     *
-     * @access private
      *
      * @param integer $offset  相对偏移量
      *
@@ -514,8 +406,6 @@ abstract class WPDP_Common {
 
     /**
      * 将绝对偏移量转换为相对偏移量
-     *
-     * @access private
      *
      * @param integer $offset  绝对偏移量
      *

@@ -44,6 +44,16 @@ class WPDP_Exception extends Exception {
 }
 
 /**
+ * WPDP_NotCompatibleException
+ *
+ * 不兼容异常
+ *
+ * @package WPDP
+ */
+class WPDP_NotCompatibleException extends WPDP_Exception {
+}
+
+/**
  * WPDP_BadMethodCallException
  *
  * 错误的方法调用异常
@@ -51,6 +61,17 @@ class WPDP_Exception extends Exception {
  * @package WPDP
  */
 class WPDP_BadMethodCallException extends WPDP_Exception {
+    public static function checkIsWritableMode($mode) {
+        assert('is_int($mode)');
+
+        assert('in_array($mode, array(WPDP::MODE_READONLY, WPDP::MODE_READWRITE))');
+
+        if ($mode == WPDP::MODE_READWRITE) {
+            return;
+        }
+
+        throw new WPDP_BadMethodCallException("The data pile is opened in readonly mode");
+    }
 }
 
 /**
@@ -104,13 +125,13 @@ class WPDP_FileOpenException extends WPDP_Exception {
 }
 
 /**
- * WPDP_SpaceFullException
+ * WPDP_ExceedLimitException
  *
- * 空间已满异常
+ * 超过限制异常
  *
  * @package WPDP
  */
-class WPDP_SpaceFullException extends WPDP_Exception {
+class WPDP_ExceedLimitException extends WPDP_Exception {
 }
 
 /**

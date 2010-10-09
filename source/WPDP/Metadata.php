@@ -44,12 +44,8 @@ class WPDP_Metadata extends WPDP_Common {
     /**
      * 构造函数
      *
-     * @access public
-     *
      * @param object  $stream   文件操作对象
      * @param integer $mode     打开模式
-     *
-     * @throws WPDP_InternalException
      */
     function __construct(WPIO_Stream $stream, $mode) {
         assert('is_a($stream, \'WPIO_Stream\')');
@@ -57,7 +53,7 @@ class WPDP_Metadata extends WPDP_Common {
 
         assert('in_array($mode, array(WPDP::MODE_READONLY, WPDP::MODE_READWRITE))');
 
-        parent::__construct(WPDP::SECTION_TYPE_METADATA, $stream, $mode);
+        parent::__construct(WPDP_Struct::SECTION_TYPE_METADATA, $stream, $mode);
     }
 
     // }}}
@@ -69,16 +65,15 @@ class WPDP_Metadata extends WPDP_Common {
     /**
      * 创建元数据文件
      *
-     * @access public
-     *
      * @param object $stream    文件操作对象
-     *
-     * @throws WPDP_InternalException
      */
     public static function create(WPIO_Stream $stream) {
         assert('is_a($stream, \'WPIO_Stream\')');
 
-        parent::create(WPDP::FILE_TYPE_METADATA, WPDP::SECTION_TYPE_METADATA, $stream);
+        parent::create(WPDP_Struct::HEADER_TYPE_METADATA, WPDP_Struct::SECTION_TYPE_METADATA, $stream);
+
+        // 写入了重要的结构和信息，将流的缓冲区写入
+        $stream->flush();
 
         return true;
     }
@@ -93,19 +88,23 @@ class WPDP_Metadata extends WPDP_Common {
 
     /**
      * 将缓冲内容写入文件
-     *
-     * @access public
      */
     public function flush() {
-        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
-        $length = $this->_tell(self::RELATIVE);
-        $this->_header['lenMetadata'] = $length;
-        $this->_writeHeader();
+        $this->_seek(0, WPIO::SEEK_END, self::_ABSOLUTE);
+        $length = $this->_tell(self::_RELATIVE);
+        $this->_section['length'] = $length;
+        $this->_writeSection();
+
+        $this->_stream->flush();
     }
 
     // }}}
 
 #endif
+
+    public function getSectionLength() {
+        return $this->_section['length'];
+    }
 
     public function getMetadata($offset) {
         assert('is_int($offset)');
@@ -116,7 +115,7 @@ class WPDP_Metadata extends WPDP_Common {
             throw new WPDP_InternalException("The offset parameter cannot be negative");
         }
 
-        $this->_seek($offset, WPIO::SEEK_SET, self::RELATIVE);
+        $this->_seek($offset, WPIO::SEEK_SET, self::_RELATIVE);
         $metadata = WPDP_Struct::unpackMetadata($this->_stream);
 
         $metadata['_offset'] = $offset;
@@ -140,7 +139,7 @@ class WPDP_Metadata extends WPDP_Common {
         assert('is_array($current)');
 
         $offset_next = $current['_offset'] + $current['lenBlock'];
-        if ($offset_next >= $this->_header['lenMetadata']) {
+        if ($offset_next >= $this->_section['length']) {
             return false;
         }
 
@@ -176,6 +175,9 @@ class WPDP_Metadata extends WPDP_Common {
             $this->_section['ofsFirst'] = $metadata_offset;
             $this->_writeSection();
         }
+
+        // 写入了重要的信息，将流的缓冲区写入
+        $this->flush();
     }
 
 #endif
@@ -187,8 +189,6 @@ class WPDP_Metadata extends WPDP_Common {
     /**
      * 写入元数据
      *
-     * @access private
-     *
      * @param array $metadata  元数据
      *
      * @return integer 元数据写入位置的偏移量
@@ -196,11 +196,13 @@ class WPDP_Metadata extends WPDP_Common {
     private function _writeMetadata(array &$metadata) {
         assert('is_array($metadata)');
 
-        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE); // to be noticed
-        $offset = $this->_tell(self::RELATIVE);
+        $this->_seek(0, WPIO::SEEK_END, self::_ABSOLUTE); // to be noticed
+        $offset = $this->_tell(self::_RELATIVE);
 
         $data_metadata = WPDP_Struct::packMetadata($metadata);
         $this->_write($data_metadata);
+
+        $this->_section['length'] = $this->_tell(self::_RELATIVE);
 
         return $offset;
     }

@@ -102,7 +102,7 @@ for ($j = 0; $j < 5; $j++) {
 
         $db->setCompression($compression);
         $db->setChecksum($checksum);
-        $db->setIndexedAttributeNames($fields_index);
+        $db->setAttributeIndexes($fields_index);
 
         $db->begin($attrs, strlen($contents));
         $db->transfer($contents);
@@ -134,9 +134,9 @@ echo "\n";
 test_query($db);
 echo "\n";
 
-$db->close();
-
 @unlink('_test_lookup.5dp');
-WPDP_File::makeLookup('_test.5dp', '_test_lookup.5dp');
+$db->export('_test_lookup.5dp', WPDP::EXPORT_LOOKUP);
+
+$db->close();
 
 ?>

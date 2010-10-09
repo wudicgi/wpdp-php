@@ -47,14 +47,14 @@ class WPDP_Entries implements SeekableIterator, Countable, ArrayAccess {
     private $_offsets = array();
     private $_position = 0;
 
-    function __construct(WPDP_Metadata $metadata, WPDP_Contents $contents, array $offsets) {
+    function __construct(array $offsets, WPDP_Metadata $metadata, WPDP_Contents $contents = null) {
+        assert('is_array($offsets)');
         assert('is_a($metadata, \'WPDP_Metadata\')');
         assert('is_a($contents, \'WPDP_Contents\')');
-        assert('is_array($offsets)');
 
+        $this->_offsets = $offsets;
         $this->_metadata = $metadata;
         $this->_contents = $contents;
-        $this->_offsets = $offsets;
     }
 
     // SeekableIterator
@@ -123,7 +123,7 @@ class WPDP_Entries implements SeekableIterator, Countable, ArrayAccess {
         assert('is_int($offset)');
 
         $metadata = $this->_metadata->getMetadata($offset);
-        $entry = new WPDP_Entry($this->_contents, $metadata);
+        $entry = new WPDP_Entry($metadata, $this->_contents);
         return $entry;
     }
 }
@@ -146,16 +146,12 @@ class WPDP_Entry implements ArrayAccess {
     /**
      * 内容文件操作对象
      *
-     * @access private
-     *
      * @var object
      */
     private $_contents = null;
 
     /**
      * 元数据文件操作对象
-     *
-     * @access private
      *
      * @var object
      */
@@ -170,17 +166,15 @@ class WPDP_Entry implements ArrayAccess {
     /**
      * 构造函数
      *
-     * @access public
-     *
-     * @param object $contents  内容文件操作对象
      * @param array  $metadata  元数据
+     * @param object $contents  内容文件操作对象
      */
-    function __construct(WPDP_Contents $contents, array $metadata) {
-        assert('is_a($contents, \'WPDP_Contents\')');
+    function __construct(array $metadata, WPDP_Contents $contents = null) {
         assert('is_array($metadata)');
+        assert('is_a($contents, \'WPDP_Contents\')');
 
-        $this->_contents = $contents;
         $this->_metadata = $metadata;
+        $this->_contents = $contents;
 
         $this->_attributes = WPDP_Entry_Attributes::createFromMetadata($this->_metadata);
     }
@@ -194,8 +188,6 @@ class WPDP_Entry implements ArrayAccess {
      *
      * 返回信息包括数据原始长度，压缩后长度，压缩类型，校验类型，
      * 分块大小，分块数量。
-     *
-     * @access public
      *
      * @return array 条目的部分信息
      */
@@ -219,8 +211,6 @@ class WPDP_Entry implements ArrayAccess {
     /**
      * 获取条目属性
      *
-     * @access public
-     *
      * @return array 条目的属性
      */
     public function attributes() {
@@ -233,8 +223,6 @@ class WPDP_Entry implements ArrayAccess {
 
     /**
      * 获取条目数据内容
-     *
-     * @access public
      *
      * @return string 条目数据内容
      */
@@ -262,8 +250,6 @@ class WPDP_Entry implements ArrayAccess {
 
     /**
      * 获取条目数据内容的 Stream
-     *
-     * @access public
      *
      * @return object 条目数据内容的 WPIO_Stream 对象
      */
@@ -308,13 +294,23 @@ class WPDP_Entry implements ArrayAccess {
     }
 }
 
+/**
+ * WPDP_Entry_Information
+ *
+ * 条目信息
+ *
+ * @category   File_Formats
+ * @package    WPDP
+ * @author     Wudi Liu <wudicgi@gmail.com>
+ * @copyright  2009-2010 Wudi Labs
+ * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
+ * @link       http://www.wudilabs.org/
+ */
 class WPDP_Entry_Information {
     // {{{ properties
 
     /**
      * 内容压缩类型
-     *
-     * @access public
      *
      * @var integer
      */
@@ -323,16 +319,12 @@ class WPDP_Entry_Information {
     /**
      * 内容校验类型
      *
-     * @access public
-     *
      * @var integer
      */
     public $checksum;
 
     /**
      * 内容分块大小
-     *
-     * @access public
      *
      * @var integer
      */
@@ -341,16 +333,12 @@ class WPDP_Entry_Information {
     /**
      * 内容分块数量
      *
-     * @access public
-     *
      * @var integer
      */
     public $chunkCount;
 
     /**
      * 原始长度
-     *
-     * @access public
      *
      * @var integer
      */
@@ -359,8 +347,6 @@ class WPDP_Entry_Information {
     /**
      * 压缩后长度
      *
-     * @access public
-     *
      * @var integer
      */
     public $compressedLength;
@@ -368,6 +354,18 @@ class WPDP_Entry_Information {
     // }}}
 }
 
+/**
+ * WPDP_Entry_Attributes
+ *
+ * 条目属性
+ *
+ * @category   File_Formats
+ * @package    WPDP
+ * @author     Wudi Liu <wudicgi@gmail.com>
+ * @copyright  2009-2010 Wudi Labs
+ * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
+ * @link       http://www.wudilabs.org/
+ */
 class WPDP_Entry_Attributes implements Iterator, Countable, ArrayAccess {
     private $_attributes;
 
@@ -394,8 +392,6 @@ class WPDP_Entry_Attributes implements Iterator, Countable, ArrayAccess {
     /**
      * 从数组创建规范化的条目属性
      *
-     * @access private
-     *
      * @throws WPDP_InvalidArgumentException
      * @throws WPDP_InvalidAttributeNameException
      * @throws WPDP_InvalidAttributeValueException
@@ -409,19 +405,24 @@ class WPDP_Entry_Attributes implements Iterator, Countable, ArrayAccess {
             throw new WPDP_InvalidArgumentException('The attributes must be in an array');
         }
 
+        // 1 + 1 + 1 + 255 + 2 + 65535 = 65795
+        // (16 * 1024 * 1024) / 65795 = 254.992264
+        if (count($attributes) > 255) {
+            throw new WPDP_InvalidArgumentException('The count of attributes cannot be more than 255');
+        }
+
         $attrs = array();
         foreach ($attributes as $name => $value) {
-            // 检查属性值是否合法
-
             if (!is_string($name)) {
                 $name = (string)$name;
             }
-            if (strlen($name) > 255) {
-                throw new WPDP_InvalidAttributeValueException("The name of attribute $name cannot be more than 255 bytes");
-            }
-
             if (!is_string($value)) {
                 $value = (string)$value;
+            }
+
+            // 检查属性值是否合法
+            if (strlen($name) > 255) {
+                throw new WPDP_InvalidAttributeValueException("The name of attribute $name cannot be more than 255 bytes");
             }
             if (strlen($value) > 65535) {
                 throw new WPDP_InvalidAttributeValueException("The value of attribute $name cannot be more than 65535 bytes");
@@ -528,6 +529,18 @@ class WPDP_Entry_Attributes implements Iterator, Countable, ArrayAccess {
     }
 }
 
+/**
+ * WPDP_Entry_Args
+ *
+ * 条目参数
+ *
+ * @category   File_Formats
+ * @package    WPDP
+ * @author     Wudi Liu <wudicgi@gmail.com>
+ * @copyright  2009-2010 Wudi Labs
+ * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
+ * @link       http://www.wudilabs.org/
+ */
 class WPDP_Entry_Args extends WPDP_Entry_Information {
     // {{{ properties
 
@@ -536,8 +549,6 @@ class WPDP_Entry_Args extends WPDP_Entry_Information {
     /**
      * 第一个分块的偏移量
      *
-     * @access public
-     *
      * @var integer
      */
     public $contentsOffset;
@@ -545,16 +556,12 @@ class WPDP_Entry_Args extends WPDP_Entry_Information {
     /**
      * 分块偏移量表的偏移量
      *
-     * @access public
-     *
      * @var integer
      */
     public $offsetTableOffset;
 
     /**
      * 分块校验值表的偏移量
-     *
-     * @access public
      *
      * @var integer
      */
@@ -565,16 +572,12 @@ class WPDP_Entry_Args extends WPDP_Entry_Information {
     /**
      * 元数据的偏移量
      *
-     * @access private
-     *
      * @var integer
      */
     public $metadataOffset;
 
     /**
      * 条目属性
-     *
-     * @access public
      *
      * @var array
      */
@@ -583,6 +586,18 @@ class WPDP_Entry_Args extends WPDP_Entry_Information {
     // }}}
 }
 
+/**
+ * WPDP_Entry_Contents_Stream
+ *
+ * 条目内容的流
+ *
+ * @category   File_Formats
+ * @package    WPDP
+ * @author     Wudi Liu <wudicgi@gmail.com>
+ * @copyright  2009-2010 Wudi Labs
+ * @license    http://www.gnu.org/copyleft/lesser.html  LGPL License 2.1
+ * @link       http://www.wudilabs.org/
+ */
 class WPDP_Entry_Contents_Stream extends WPIO_Stream {
     private $_contents = null;
     private $_args = null;
@@ -612,6 +627,10 @@ class WPDP_Entry_Contents_Stream extends WPIO_Stream {
     }
 
     public function close() {
+        // to be noticed
+    }
+
+    public function flush() {
         // to be noticed
     }
 

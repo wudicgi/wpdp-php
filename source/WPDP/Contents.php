@@ -46,8 +46,6 @@ class WPDP_Contents extends WPDP_Common {
     /**
      * 写入缓冲区
      *
-     * @access private
-     *
      * @var string
      */
     private $_buffer;
@@ -58,8 +56,6 @@ class WPDP_Contents extends WPDP_Common {
 
     /**
      * 实际已写入数据字节数
-     *
-     * @access private
      *
      * @var integer
      */
@@ -72,8 +68,6 @@ class WPDP_Contents extends WPDP_Common {
     /**
      * 内容分块偏移量表
      *
-     * @access private
-     *
      * @var array
      */
     private $_chunkOffsets;
@@ -84,8 +78,6 @@ class WPDP_Contents extends WPDP_Common {
 
     /**
      * 内容分块校验值表
-     *
-     * @access private
      *
      * @var array
      */
@@ -100,12 +92,8 @@ class WPDP_Contents extends WPDP_Common {
     /**
      * 构造函数
      *
-     * @access public
-     *
      * @param object  $stream   文件操作对象
      * @param integer $mode     打开模式
-     *
-     * @throws WPDP_InternalException
      */
     function __construct(WPIO_Stream $stream, $mode) {
         assert('is_a($stream, \'WPIO_Stream\')');
@@ -113,7 +101,7 @@ class WPDP_Contents extends WPDP_Common {
 
         assert('in_array($mode, array(WPDP::MODE_READONLY, WPDP::MODE_READWRITE))');
 
-        parent::__construct(WPDP::SECTION_TYPE_CONTENTS, $stream, $mode);
+        parent::__construct(WPDP_Struct::SECTION_TYPE_CONTENTS, $stream, $mode);
     }
 
     // }}}
@@ -125,16 +113,15 @@ class WPDP_Contents extends WPDP_Common {
     /**
      * 创建内容文件
      *
-     * @access public
-     *
      * @param object $stream    文件操作对象
-     *
-     * @throws WPDP_InternalException
      */
     public static function create(WPIO_Stream $stream) {
         assert('is_a($stream, \'WPIO_Stream\')');
 
-        parent::create(WPDP::FILE_TYPE_CONTENTS, WPDP::SECTION_TYPE_CONTENTS, $stream);
+        parent::create(WPDP_Struct::HEADER_TYPE_CONTENTS, WPDP_Struct::SECTION_TYPE_CONTENTS, $stream);
+
+        // 写入了重要的结构和信息，将流的缓冲区写入
+        $stream->flush();
 
         return true;
     }
@@ -149,49 +136,22 @@ class WPDP_Contents extends WPDP_Common {
 
     /**
      * 将缓冲内容写入文件
-     *
-     * @access public
      */
     public function flush() {
-        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
-        $length = $this->_tell(self::RELATIVE);
-        $this->_header['lenContents'] = $length;
-        $this->_writeHeader();
+        $this->_seek(0, WPIO::SEEK_END, self::_ABSOLUTE);
+        $length = $this->_tell(self::_RELATIVE);
+        $this->_section['length'] = $length;
+        $this->_writeSection();
+
+        $this->_stream->flush();
     }
 
     // }}}
 
 #endif
 
-    public function _getOffsetsAndSizes(WPDP_Entry_Args $args) {
-        assert('is_a($args, \'WPDP_Entry_Args\')');
-
-        if ($args->offsetTableOffset != 0) {
-            $this->_seek($args->offsetTableOffset, WPIO::SEEK_SET, self::ABSOLUTE);
-
-            $data = $this->_read($args->chunkCount * 4);
-            $offsets = array_values(unpack('V*', $data));
-            $offsets_count = count($offsets);
-
-            $sizes = array();
-            $offset_temp = $args->compressedLength;
-            for ($i = $offsets_count - 1; $i >= 0; $i--) {
-                $sizes[$i] = $offset_temp - $offsets[$i];
-                $offset_temp = $offsets[$i];
-            }
-        } elseif ($args->compression == WPDP::COMPRESSION_NONE) {
-            $offsets = array();
-            for ($i = 0; $i < $args->chunkCount; $i++) {
-                $offsets[$i] = $args->chunkSize * $i;
-            }
-
-            $sizes = array_fill(0, $args->chunkCount, $args->chunkSize);
-            $sizes[$args->chunkCount - 1] = $args->compressedLength - $offsets[$args->chunkCount - 1];
-        } else {
-            throw new WPDP_FileBrokenException();
-        }
-
-        return array($offsets, $sizes);
+    public function getSectionLength() {
+        return $this->_section['length'];
     }
 
     public function getContents(WPDP_Entry_Args $args, $offset, $length) {
@@ -235,9 +195,9 @@ class WPDP_Contents extends WPDP_Common {
         while ($didread < $length) {
             $chunk_index = (int)($offset / $args->chunkSize);
 
-            $chunk = $this->_read($sizes[$chunk_index], $args->contentsOffset + $offsets[$chunk_index], self::ABSOLUTE);
+            $chunk = $this->_read($sizes[$chunk_index], $args->contentsOffset + $offsets[$chunk_index], self::_ABSOLUTE);
 
-            if ($args->compression != WPDP::COMPRESSION_NONE) {
+            if ($args->compression != WPDP_Struct::CONTENTS_COMPRESSION_NONE) {
                 $this->_decompress($chunk, $args->compression);
             }
 
@@ -262,23 +222,23 @@ class WPDP_Contents extends WPDP_Common {
         return $data;
 /*
         if ($args->checksumTableOffset != 0) {
-            $this->_seek($args->checksumTableOffset, WPIO::SEEK_SET, self::ABSOLUTE);
+            $this->_seek($args->checksumTableOffset, WPIO::SEEK_SET, self::_ABSOLUTE);
 
             switch ($args->checksum) {
-                case WPDP::CHECKSUM_CRC32:
+                case WPDP_Struct::CONTENTS_CHECKSUM_CRC32:
                     $data = $this->_read($args->chunkCount * 4);
                     $checksums = array_values(unpack('V*', $data));
                     break;
-                case WPDP::CHECKSUM_MD5:
+                case WPDP_Struct::CONTENTS_CHECKSUM_MD5:
                     $data = $this->_read($args->chunkCount * 16);
                     $checksums = str_split($data, 16);
                     break;
-                case WPDP::CHECKSUM_SHA1:
+                case WPDP_Struct::CONTENTS_CHECKSUM_SHA1:
                     $data = $this->_read($args->chunkCount * 20);
                     $checksums = str_split($data, 20);
                     break;
             }
-        } elseif ($args->checksum != WPDP::CHECKSUM_NONE) {
+        } elseif ($args->checksum != WPDP_Struct::CONTENTS_CHECKSUM_NONE) {
             // throw exception
         }
 */
@@ -290,8 +250,6 @@ class WPDP_Contents extends WPDP_Common {
 
     /**
      * 开始一个数据传输
-     *
-     * @access public
      *
      * @param integer $length   内容长度
      * @param object  $args     WPDP_Entry_Args 对象
@@ -308,8 +266,8 @@ class WPDP_Contents extends WPDP_Common {
             throw new WPDP_InternalException("The length parameter cannot be negative");
         }
 
-        $this->_seek(0, WPIO::SEEK_END, self::ABSOLUTE);
-        $offset_begin = $this->_tell(self::ABSOLUTE);
+        $this->_seek(0, WPIO::SEEK_END, self::_ABSOLUTE);
+        $offset_begin = $this->_tell(self::_ABSOLUTE);
 
         $args->contentsOffset = $offset_begin;
         $args->offsetTableOffset = 0;
@@ -339,8 +297,6 @@ class WPDP_Contents extends WPDP_Common {
 
     /**
      * 传输数据
-     *
-     * @access public
      *
      * @param string $data  数据
      * @param object $args  WPDP_Entry_Args 对象
@@ -378,8 +334,6 @@ class WPDP_Contents extends WPDP_Common {
     /**
      * 提交所传输数据
      *
-     * @access public
-     *
      * @param object $args  WPDP_Entry_Args 对象
      */
     public function commit(WPDP_Entry_Args $args) {
@@ -395,21 +349,24 @@ class WPDP_Contents extends WPDP_Common {
         trace(__METHOD__, print_r($this->_chunkChecksums, true));
 
         // 若已启用压缩，写入分块偏移量表
-        if ($args->compression != WPDP::COMPRESSION_NONE) {
+        if ($args->compression != WPDP_Struct::CONTENTS_COMPRESSION_NONE) {
             $offsets = '';
             foreach ($this->_chunkOffsets as $offset) {
                 $offsets .= pack('V', $offset);
+                $offsets .= pack('V', 0); // offset_high
             }
-            $args->offsetTableOffset = $this->_tell(self::ABSOLUTE);
+            $args->offsetTableOffset = $this->_tell(self::_ABSOLUTE);
             $this->_write($offsets);
         }
 
         // 若已启用校验，写入分块校验值表
-        if ($args->checksum != WPDP::CHECKSUM_NONE) {
+        if ($args->checksum != WPDP_Struct::CONTENTS_CHECKSUM_NONE) {
             $checksums = implode('', $this->_chunkChecksums);
-            $args->checksumTableOffset = $this->_tell(self::ABSOLUTE);
+            $args->checksumTableOffset = $this->_tell(self::_ABSOLUTE);
             $this->_write($checksums);
         }
+
+        $this->_section['length'] = $this->_tell(self::_RELATIVE);
     }
 
     // }}}
@@ -422,8 +379,6 @@ class WPDP_Contents extends WPDP_Common {
 
     /**
      * 写入缓冲区数据
-     *
-     * @access private
      *
      * @param object $args  WPDP_Entry_Args 对象
      *
@@ -440,16 +395,16 @@ class WPDP_Contents extends WPDP_Common {
         }
 
         // 计算该块的校验值 (若已设置)
-        if ($args->checksum == WPDP::CHECKSUM_CRC32) {
+        if ($args->checksum == WPDP_Struct::CONTENTS_CHECKSUM_CRC32) {
             $this->_chunkChecksums[] = pack('V', crc32($this->_buffer));
-        } elseif ($args->checksum == WPDP::CHECKSUM_MD5) {
+        } elseif ($args->checksum == WPDP_Struct::CONTENTS_CHECKSUM_MD5) {
             $this->_chunkChecksums[] = md5($this->_buffer, true);
-        } elseif ($args->checksum == WPDP::CHECKSUM_SHA1) {
+        } elseif ($args->checksum == WPDP_Struct::CONTENTS_CHECKSUM_SHA1) {
             $this->_chunkChecksums[] = sha1($this->_buffer, true);
         }
 
         // 压缩该块数据 (若已设置)
-        if ($args->compression != WPDP::COMPRESSION_NONE) {
+        if ($args->compression != WPDP_Struct::CONTENTS_COMPRESSION_NONE) {
             $this->_compress($this->_buffer, $args->compression);
         }
         $len_compressed = strlen($this->_buffer);
@@ -464,6 +419,8 @@ class WPDP_Contents extends WPDP_Common {
         // 写入该块数据
         $this->_write($this->_buffer);
 
+        $this->_section['length'] = $this->_tell(self::_RELATIVE);
+
         // 累加已写入字节数
         $this->_bytesWritten += $len_compressed;
 
@@ -477,24 +434,61 @@ class WPDP_Contents extends WPDP_Common {
 
 #endif
 
+    private function _getOffsetsAndSizes(WPDP_Entry_Args $args) {
+        assert('is_a($args, \'WPDP_Entry_Args\')');
+
+        if ($args->offsetTableOffset != 0) {
+            $this->_seek($args->offsetTableOffset, WPIO::SEEK_SET, self::_ABSOLUTE);
+
+            $data = $this->_read($args->chunkCount * 8);
+            $offsets_mixed = array_values(unpack('V*', $data));
+            $offsets = array();
+            foreach ($offsets_mixed as $n => $offset_mixed) {
+                if ($n & 1 == 0) { // n = 0, 2, 4, 6, 8, ...
+                    $offsets[] = $offset_mixed;
+                }
+            }
+            $offsets_count = count($offsets);
+
+            $sizes = array();
+            $offset_temp = $args->compressedLength;
+            for ($i = $offsets_count - 1; $i >= 0; $i--) {
+                $sizes[$i] = $offset_temp - $offsets[$i];
+                $offset_temp = $offsets[$i];
+            }
+        } elseif ($args->compression == WPDP_Struct::CONTENTS_COMPRESSION_NONE) {
+            $offsets = array();
+            for ($i = 0; $i < $args->chunkCount; $i++) {
+                $offsets[$i] = $args->chunkSize * $i;
+            }
+
+            $sizes = array_fill(0, $args->chunkCount, $args->chunkSize);
+            $sizes[$args->chunkCount - 1] = $args->compressedLength - $offsets[$args->chunkCount - 1];
+        } else {
+            throw new WPDP_FileBrokenException();
+        }
+
+        return array($offsets, $sizes);
+    }
+
     private static function _checksum(&$data, $type) {
         assert('is_string($data)');
         assert('is_int($type)');
 
-        assert('in_array($type, array(WPDP::CHECKSUM_NONE, WPDP::CHECKSUM_CRC32, WPDP::CHECKSUM_MD5, WPDP::CHECKSUM_SHA1))');
+        assert('in_array($type, array(WPDP_Struct::CONTENTS_CHECKSUM_NONE, WPDP_Struct::CONTENTS_CHECKSUM_CRC32, WPDP_Struct::CONTENTS_CHECKSUM_MD5, WPDP_Struct::CONTENTS_CHECKSUM_SHA1))');
 
         $checksum = '';
 
         switch ($type) {
-            case WPDP::CHECKSUM_NONE:
+            case WPDP_Struct::CONTENTS_CHECKSUM_NONE:
                 break;
-            case WPDP::CHECKSUM_CRC32:
+            case WPDP_Struct::CONTENTS_CHECKSUM_CRC32:
                 $checksum = pack('V', crc32($this->_buffer));
                 break;
-            case WPDP::CHECKSUM_MD5:
+            case WPDP_Struct::CONTENTS_CHECKSUM_MD5:
                 $checksum = md5($this->_buffer, true);
                 break;
-            case WPDP::CHECKSUM_SHA1:
+            case WPDP_Struct::CONTENTS_CHECKSUM_SHA1:
                 $checksum = sha1($this->_buffer, true);
                 break;
             // DEBUG: BEGIN ASSERT
@@ -513,15 +507,15 @@ class WPDP_Contents extends WPDP_Common {
         assert('is_string($data)');
         assert('is_int($type)');
 
-        assert('in_array($type, array(WPDP::COMPRESSION_NONE, WPDP::COMPRESSION_GZIP, WPDP::COMPRESSION_BZIP2))');
+        assert('in_array($type, array(WPDP_Struct::CONTENTS_COMPRESSION_NONE, WPDP_Struct::CONTENTS_COMPRESSION_GZIP, WPDP_Struct::CONTENTS_COMPRESSION_BZIP2))');
 
         switch ($type) {
-            case WPDP::COMPRESSION_NONE:
+            case WPDP_Struct::CONTENTS_COMPRESSION_NONE:
                 break;
-            case WPDP::COMPRESSION_GZIP:
+            case WPDP_Struct::CONTENTS_COMPRESSION_GZIP:
                 $data = gzcompress($data);
                 break;
-            case WPDP::COMPRESSION_BZIP2:
+            case WPDP_Struct::CONTENTS_COMPRESSION_BZIP2:
                 $data = bzcompress($data);
                 break;
             // DEBUG: BEGIN ASSERT
@@ -538,15 +532,15 @@ class WPDP_Contents extends WPDP_Common {
         assert('is_string($data)');
         assert('is_int($type)');
 
-        assert('in_array($type, array(WPDP::COMPRESSION_NONE, WPDP::COMPRESSION_GZIP, WPDP::COMPRESSION_BZIP2))');
+        assert('in_array($type, array(WPDP_Struct::CONTENTS_COMPRESSION_NONE, WPDP_Struct::CONTENTS_COMPRESSION_GZIP, WPDP_Struct::CONTENTS_COMPRESSION_BZIP2))');
 
         switch ($type) {
-            case WPDP::COMPRESSION_NONE:
+            case WPDP_Struct::CONTENTS_COMPRESSION_NONE:
                 break;
-            case WPDP::COMPRESSION_GZIP:
+            case WPDP_Struct::CONTENTS_COMPRESSION_GZIP:
                 $data = gzuncompress($data);
                 break;
-            case WPDP::COMPRESSION_BZIP2:
+            case WPDP_Struct::CONTENTS_COMPRESSION_BZIP2:
                 $data = bzdecompress($data);
                 break;
             // DEBUG: BEGIN ASSERT
@@ -567,8 +561,6 @@ class WPDP_Contents extends WPDP_Common {
      * 分块大小根据内容长度确定。当内容长度不足 64MB 时，分块大小为 16KB；
      * 超过 1024MB 时，分块大小为 512KB；介于 64MB 和 1024MB 之间时使用
      * chunk_size = 2 ^ ceil(log2(length / 4096)) 计算。
-     *
-     * @access private
      *
      * @param integer $length  内容长度
      *
