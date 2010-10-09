@@ -444,7 +444,7 @@ class WPDP_Contents extends WPDP_Common {
             $offsets_mixed = array_values(unpack('V*', $data));
             $offsets = array();
             foreach ($offsets_mixed as $n => $offset_mixed) {
-                if ($n & 1 == 0) { // n = 0, 2, 4, 6, 8, ...
+                if (($n & 1) == 0) { // n = 0, 2, 4, 6, 8, ...
                     $offsets[] = $offset_mixed;
                 }
             }
