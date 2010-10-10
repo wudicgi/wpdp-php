@@ -230,6 +230,9 @@ class WPDP_Struct {
     const ATTRIBUTE_FLAG_NONE = 0x00;
     const ATTRIBUTE_FLAG_INDEXED = 0x01;
 
+    const INDEX_TYPE_UNDEFINED = 0x00;
+    const INDEX_TYPE_BTREE = 0x01;
+
     // }}}
 
     private static $_structs = array(
@@ -846,6 +849,7 @@ class WPDP_Struct {
 
         foreach ($object['indexes'] as $index) {
             $blob .= pack('C', self::INDEX_SIGNATURE);
+            $blob .= pack('C', self::INDEX_TYPE_BTREE);
             $blob .= pack('C', strlen($index['name']));
             $blob .= $index['name'];
             $blob .= pack('V', $index['ofsRoot']);
@@ -865,12 +869,17 @@ class WPDP_Struct {
 
         $i = 0;
         while ($i < $length) {
-            $temp = unpack('Csignature', $blob[$i]);
-            $i += 1;
+            $temp = unpack('Csignature/Ctype', substr($blob, $i, 2));
+            $i += 2;
 
             if ($temp['signature'] != self::INDEX_SIGNATURE) {
                 throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X",
                     $temp['signature'], self::INDEX_SIGNATURE));
+            }
+
+            if ($temp['type'] != self::INDEX_TYPE_BTREE) {
+                throw new WPDP_FileBrokenException(sprintf("Unexpected index type 0x%X, expecting 0x%X",
+                    $temp['signature'], self::INDEX_TYPE_BTREE));
             }
 
             $temp = unpack('Clen', $blob[$i]);
