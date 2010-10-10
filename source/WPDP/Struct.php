@@ -63,6 +63,11 @@ class WPDP_Struct {
      */
     const ATTRIBUTE_SIGNATURE = 0xD5; // 0x61 + 0x74
 
+    /**
+     * 索引信息的标识常量
+     *
+     * @global integer INDEX_SIGNATURE  索引信息的标识
+     */
     const INDEX_SIGNATURE = 0xE1; // 0x69 + 0x78
 
     /**
@@ -230,6 +235,12 @@ class WPDP_Struct {
     const ATTRIBUTE_FLAG_NONE = 0x00;
     const ATTRIBUTE_FLAG_INDEXED = 0x01;
 
+    /**
+     * 索引类型常量
+     *
+     * @global integer INDEX_TYPE_UNDEFINED 未定义类型
+     * @global integer INDEX_TYPE_BTREE     B+ 树类型
+     */
     const INDEX_TYPE_UNDEFINED = 0x00;
     const INDEX_TYPE_BTREE = 0x01;
 

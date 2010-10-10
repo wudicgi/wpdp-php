@@ -98,8 +98,20 @@ class WPDP {
     const CHECKSUM_MD5 = 2;
     const CHECKSUM_SHA1 = 3;
 
+    /**
+     * 导出类型常量
+     *
+     * @global integer EXPORT_LOOKUP    用于查找条目的文件
+     */
     const EXPORT_LOOKUP = 0x06;
 
+    /**
+     * 存储形式常量
+     *
+     * @global integer STORAGE_FORM_SEPARATE    分离文件
+     * @global integer STORAGE_FORM_COMPOUND    复合文件
+     * @global integer STORAGE_FORM_LOOKUP      用于查找条目的文件
+     */
     const STORAGE_FORM_SEPARATE = 1;
     const STORAGE_FORM_COMPOUND = 2;
     const STORAGE_FORM_LOOKUP = 3;
@@ -537,6 +549,18 @@ class WPDP {
 
 #endif
 
+    // {{{ export()
+
+    /**
+     * 导出数据堆
+     *
+     * @param object  $stream_out   输出所要写入的流
+     * @param integer $type         导出文件类型
+     *
+     * @throws WPDP_InvalidArgumentException
+     * @throws WPDP_FileOpenException
+     * @throws WPDP_InternalException
+     */
     public function export(WPIO_Stream $stream_out, $type = self::EXPORT_LOOKUP) {
         assert('is_a($stream_out, \'WPIO_Stream\')');
         assert('is_int($type)');
@@ -590,6 +614,13 @@ class WPDP {
         return true;
     }
 
+    // }}}
+
+    // {{{ close()
+
+    /**
+     * 关闭当前打开的数据堆
+     */
     public function close() {
         if (!$this->_opened) {
             throw new WPDP_BadMethodCallException("The data pile has already closed");
@@ -616,6 +647,8 @@ class WPDP {
         $this->_opened = false;
     }
 
+    // }}}
+
 #ifndef BUILD_READONLY
 
     // {{{ flush()
@@ -637,6 +670,13 @@ class WPDP {
 
 #endif
 
+    // {{{ fileVersion()
+
+    /**
+     * 获取当前数据堆文件的版本
+     *
+     * @return string 当前数据堆文件的版本
+     */
     public function fileVersion() {
         $version = (($this->_file_version >> 12) & 0xF) . '.' .
                    (($this->_file_version >> 8) & 0xF) . '.' .
@@ -646,6 +686,15 @@ class WPDP {
         return $version;
     }
 
+    // }}}
+
+    // {{{ fileStorageForm()
+
+    /**
+     * 获取当前数据堆的存储形式
+     *
+     * @return string 当前数据堆的存储形式
+     */
     public function fileStorageForm() {
         switch ($this->_file_type) {
             case WPDP_Struct::HEADER_TYPE_CONTENTS:
@@ -657,6 +706,15 @@ class WPDP {
         }
     }
 
+    // }}}
+
+    // {{{ fileSpaceUsed()
+
+    /**
+     * 获取当前数据堆已使用的空间
+     *
+     * @return integer 当前数据堆已使用的空间
+     */
     public function fileSpaceUsed() {
         $length = 0;
 
@@ -686,9 +744,20 @@ class WPDP {
         return $length;
     }
 
+    // }}}
+
+    // {{{ fileSpaceAvailable()
+
+    /**
+     * 获取当前数据堆的可用空间
+     *
+     * @return integer 获取当前数据堆的可用空间
+     */
     public function fileSpaceAvailable() {
         return self::_FILESIZE_MAX - $this->fileSpaceUsed();
     }
+
+    // }}}
 
 #ifndef BUILD_READONLY
 
@@ -1016,12 +1085,30 @@ class WPDP {
 
 #endif
 
+    // {{{ _checkDependencies()
+
+    /**
+     * 检查当前库所依赖的库的版本
+     */
     protected static function _checkDependencies() {
         if (!WPIO::libraryCompatibleWith(self::_DEPEND_WPIO_VERSION)) {
             throw new WPDP_NotCompatibleException("The WPIO library version " . WPIO::libraryVersion() . " is not compatible with the WPDP version " . self::libraryVersion());
         }
     }
 
+    // }}}
+
+    // {{{ _readSectionWithCheck()
+
+    /**
+     * 带检查读取区域信息
+     *
+     * @param object  $stream       流
+     * @param array   $header       头信息
+     * @param integer $section_type 区域类型
+     *
+     * @return array 区域信息
+     */
     private static function _readSectionWithCheck(WPIO_Stream $stream, array $header, $section_type) {
         assert('is_a($stream, \'WPIO_Stream\')');
         assert('is_array($header)');
@@ -1046,6 +1133,18 @@ class WPDP {
         return $section;
     }
 
+    // }}}
+
+    // {{{ _readHeaderWithCheck()
+
+    /**
+     * 带检查读取头信息
+     *
+     * @param object  $stream       流
+     * @param integer $file_type    文件类型
+     *
+     * @return array 头信息
+     */
     private static function _readHeaderWithCheck(WPIO_Stream $stream, $file_type) {
         assert('is_a($stream, \'WPIO_Stream\')');
         assert('is_int($file_type)');
@@ -1063,8 +1162,18 @@ class WPDP {
         return $header;
     }
 
-#ifndef BUILD_READONLY
+    // }}}
 
+    // {{{ _streamCopy()
+
+    /**
+     * 复制流中的数据
+     *
+     * @param object  $dst      目标流
+     * @param object  $src      来源流
+     * @param integer $offset   开始位置的偏移量
+     * @param integer $length   要复制长度的字节数
+     */
     private static function _streamCopy(WPIO_Stream $dst, WPIO_Stream $src, $offset, $length) {
         assert('is_a($dst, \'WPIO_Stream\')');
         assert('is_a($src, \'WPIO_Stream\')');
@@ -1094,7 +1203,7 @@ class WPDP {
         }
     }
 
-#endif
+    // }}}
 
     // {{{ _checkCapabilities()
 
@@ -1317,6 +1426,18 @@ class WPDP_File extends WPDP {
 
 #endif
 
+    // {{{ export()
+
+    /**
+     * 导出数据堆
+     *
+     * @param string  $filename_out 输出所要写入文件的文件名
+     * @param integer $type         导出文件类型
+     *
+     * @throws WPDP_InvalidArgumentException
+     * @throws WPDP_FileOpenException
+     * @throws WPDP_InternalException
+     */
     public function export($filename_out, $type = self::EXPORT_LOOKUP) {
         assert('is_string($filename_out)');
         assert('is_int($type)');
@@ -1340,6 +1461,8 @@ class WPDP_File extends WPDP {
 
         $stream_out->close();
     }
+
+    // }}}
 
     // {{{ close()
 
