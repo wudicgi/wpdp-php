@@ -136,6 +136,16 @@ class WPDP {
     const _DEPEND_WPIO_VERSION = '0.1.0-dev';
 
     /**
+     * 当前库的 INT32 限制所允许的最大文件大小
+     *
+     *   PHP_INT_MAX = 2^31 -    1 = 2147483647 = 2GB - 1B
+     * _FILESIZE_MAX = 2^31 - 2^25 = 2113929216 = 2GB - 32MB = 1.96875GB
+     *
+     * @global integer _FILESIZE_MAX    最大文件大小
+     */
+    const _FILESIZE_MAX = 2113929216;
+
+    /**
      * 流的能力检查常量
      *
      * @global integer _CAPABILITY_READ     检查是否可读
@@ -154,16 +164,6 @@ class WPDP {
      */
     const _CAPABILITY_READ_SEEK = 0x05; // READ | SEEK = 0x01 | 0x04
     const _CAPABILITY_READ_WRITE_SEEK = 0x07; // READ | WRITE | SEEK = 0x01 | 0x02 | 0x04
-
-    /**
-     * 当前库的 INT32 限制所允许的最大文件大小
-     *
-     *   PHP_INT_MAX = 2^31 -    1 = 2147483647 = 2GB - 1B
-     * _FILESIZE_MAX = 2^31 - 2^25 = 2113929216 = 2GB - 32MB = 1.96875GB
-     *
-     * @global integer _FILESIZE_MAX    最大文件大小
-     */
-    const _FILESIZE_MAX = 2113929216;
 
     // }}}
 
@@ -1076,7 +1076,7 @@ class WPDP {
         unset($this->_space_available);
         unset($this->_args);
 
-        if ($this->_open_mode == self::CACHE_DISABLED) {
+        if ($this->_cache_mode == self::CACHE_DISABLED) {
             $this->flush();
         }
     }

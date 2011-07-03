@@ -256,11 +256,11 @@ class WPDP_Struct {
                 'limit' => 'C', // 文件限制
                 '__reserved_char_1' => 'C', // 保留
                 '__reserved_char_2' => 'C', // 保留
-                'ofsContents' => 'V', // 条目的偏移量
+                'ofsContents' => 'V', // 内容区域的偏移量
                     '__ofsContents_high' => 'V',
-                'ofsMetadata' => 'V', // 条目的偏移量
+                'ofsMetadata' => 'V', // 元数据区域的偏移量
                     '__ofsMetadata_high' => 'V',
-                'ofsIndexes' => 'V', // 索引的偏移量
+                'ofsIndexes' => 'V', // 索引区域的偏移量
                     '__ofsIndexes_high' => 'V',
                 '__padding' => 'a476' // 填充块到 512 bytes
             ),
@@ -628,15 +628,15 @@ class WPDP_Struct {
         $head = substr($data, 0, self::$_structs['node']['size']);
         $object = unpack(self::$_structs['node']['format'], $head);
 
-        assert('in_array($object[\'isLeaf\'], array(0, 1))');
-
-        // 将 isLeaf 的值由 int 型的 0, 1 转换为 bool 型
-        $object['isLeaf'] = (bool)$object['isLeaf'];
-
         if ($object['signature'] != self::NODE_SIGNATURE) {
             throw new WPDP_FileBrokenException(sprintf("Unexpected signature 0x%X, expecting 0x%X @ 0x%X",
                 $object['signature'], self::NODE_SIGNATURE, $offset));
         }
+
+        assert('in_array($object[\'isLeaf\'], array(0, 1))');
+
+        // 将 isLeaf 的值由 int 型的 0, 1 转换为 bool 型
+        $object['isLeaf'] = (bool)$object['isLeaf'];
 
         $object['elements'] = array();
         $object['_size'] = 0;
