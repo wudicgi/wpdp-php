@@ -3,19 +3,15 @@ require_once 'global.php';
 
 $compressions = array(
     WPDP::COMPRESSION_NONE,
-/*
     WPDP::COMPRESSION_GZIP,
-    WPDP::COMPRESSION_BZIP2
-*/
+    WPDP::COMPRESSION_BZIP2,
 );
 
 $checksums = array(
     WPDP::CHECKSUM_NONE,
-/*
+    WPDP::CHECKSUM_CRC32,
     WPDP::CHECKSUM_MD5,
     WPDP::CHECKSUM_SHA1,
-    WPDP::CHECKSUM_CRC32
-*/
 );
 
 @unlink('_test.5dp');
@@ -33,7 +29,7 @@ $count_all = 0;
 $k = 0;
 for ($j = 0; $j < 5; $j++) {
     $count_fields = mt_rand(5, 10);
-    $count_entries = mt_rand(50, 100);
+    $count_entries = mt_rand(500, 1000);
 
     $count_all += $count_entries;
 
