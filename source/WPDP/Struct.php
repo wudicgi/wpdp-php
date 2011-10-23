@@ -384,7 +384,7 @@ class WPDP_Struct {
                 'ofsExtra' => 'V', // 补充偏移量 (局部)
                     '__ofsExtra_high' => 'V',
                 '__padding' => 'a16' // 填充块头部到 32 bytes
-                // to be noticed, related to NODE_DATA_SIZE
+                // related to NODE_DATA_SIZE
             ),
 #ifndef BUILD_READONLY
             'default' => array(
@@ -590,7 +590,7 @@ class WPDP_Struct {
         $string = '';
         foreach ($object['elements'] as $elem) {
             $string = pack('C', strlen($elem['key'])) . $elem['key'] . $string;
-            $blob .= pack('v', self::NODE_BLOCK_SIZE - strlen($string)); // pointer to key
+            $blob .= pack('v', strlen($string)); // pointer to key
             $blob .= pack('V', $elem['value']); // offset
             $blob .= pack('V', 0); // offset_high
         }
@@ -649,7 +649,7 @@ class WPDP_Struct {
         $head_size = self::$_structs['node']['size'];
         while ($n < $object['numElement']) {
             $temp = unpack('vstr/Voffset/Voffset_high', substr($blob, $pos_base, 10));
-            $key = substr($blob, $temp['str'] + 1 - $head_size, ord($blob[$temp['str'] - $head_size]));
+            $key = substr($blob, self::NODE_DATA_SIZE - $temp['str'] + 1, ord($blob[self::NODE_DATA_SIZE - $temp['str']]));
             $object['elements'][] = array('key' => $key, 'value' => $temp['offset']);
             $object['_size'] += 2 + 8 + 1 + strlen($key);
             $pos_base += 10;

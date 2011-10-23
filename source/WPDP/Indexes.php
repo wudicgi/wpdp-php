@@ -1111,7 +1111,7 @@ class WPDP_Indexes extends WPDP_Common {
         $count = count($node['elements']);
 
         if ($pos == $count - 1) {
-            // to be noticed, 这样调用函数比把代码写到本函数中速度快，尚不清楚原因
+            // 这样调用函数比把代码写到本函数中速度快，尚不清楚原因
             return self::_appendElement($node, $key, $value);
         }
 
