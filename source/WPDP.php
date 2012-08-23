@@ -286,6 +286,18 @@ class WPDP {
 
     // }}}
 
+    public static function libraryVersion() {
+        return self::_LIBRARY_VERSION;
+    }
+
+    public static function libraryCompatibleWith($version) {
+        if (version_compare($version, self::libraryVersion()) <= 0) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     // {{{ constructor
 
     /**
@@ -380,10 +392,12 @@ class WPDP {
         $this->_file_limit = $header['limit'];
 
         $this->_open_mode = $mode;
+#ifndef BUILD_READONLY
         $this->_cache_mode = self::CACHE_ENABLED;
         $this->_compression = WPDP_Struct::CONTENTS_COMPRESSION_NONE;
         $this->_checksum = WPDP_Struct::CONTENTS_CHECKSUM_NONE;
         $this->_attribute_indexes = array();
+#endif
 
         $this->_space_available = 0;
 
@@ -427,18 +441,6 @@ class WPDP {
     */
 
     // }}}
-
-    public static function libraryVersion() {
-        return self::_LIBRARY_VERSION;
-    }
-
-    public static function libraryCompatibleWith($version) {
-        if (version_compare($version, self::libraryVersion()) <= 0) {
-            return true;
-        } else {
-            return false;
-        }
-    }
 
 #ifndef BUILD_READONLY
 
@@ -549,6 +551,8 @@ class WPDP {
 
 #endif
 
+#ifndef BUILD_READONLY
+
     // {{{ export()
 
     /**
@@ -615,6 +619,8 @@ class WPDP {
     }
 
     // }}}
+
+#endif
 
     // {{{ close()
 
